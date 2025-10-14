@@ -4,14 +4,18 @@
 
 El proyecto consiste en el desarrollo de una **API REST** para la **gestión de reservas de turnos médicos ambulatorios**, permitiendo a los pacientes consultar la disponibilidad de profesionales, reservar turnos y recibir recordatorios automáticos.
 
+**Scope del proyecto:** Solo desarrollo de APIs REST, sin frontend. Los clientes interactuarán mediante requests HTTP directos o herramientas como Postman.
+
 El sistema contempla:
 - **Entidades principales:** Paciente, Profesional (con agenda)
 - **Transacción clave:** Reserva de turno (verificación de disponibilidad, bloqueo temporal y confirmación)
 - **Asincronía:** Recordatorios automáticos con reintentos
-- **Integración:** Webhook de confirmación/cancelación o tablero en vivo vía WebSocket
-- **Seguridad:** OAuth2 + JWT
+- **Integración:** Webhook de confirmación/cancelación
+- **Seguridad:** OAuth2 + JWT con Keycloak
+- **Base de datos:** PostgreSQL con Prisma ORM
+- **Comunicación asíncrona:** RabbitMQ
 - **Contenedores:** Docker + Docker Compose
-- **Observabilidad:** logs estructurados y métricas básicas
+- **Observabilidad:** Logs estructurados con Kibana
 - **Pruebas:** colección de Postman
 ## Nivel 1: Contexto del Sistema
 
@@ -19,25 +23,25 @@ Este diagrama muestra el sistema de reserva de turnos médicos en su contexto m�
 
 ```mermaid
 graph TB
-    subgraph "Usuarios"
-        Patient[Paciente<br/>Reserva turnos médicos]
-        Professional[Profesional Médico<br/>Gestiona agenda y turnos]
+    subgraph "Clientes API"
+        Patient[Paciente<br/>HTTP Requests<br/>Postman/Cliente HTTP]
+        Professional[Profesional Médico<br/>HTTP Requests<br/>Postman/Cliente HTTP]
     end
     
     subgraph "Sistema Principal"
-        System[Sistema de Reserva<br/>de Turnos Médicos<br/><br/>Permite a pacientes reservar<br/>turnos y a profesionales<br/>gestionar sus agendas]
+        System[Sistema de Reserva<br/>de Turnos Médicos<br/><br/>API REST<br/>Solo backend - Sin frontend]
     end
     
     subgraph "Sistemas Externos"
-        AuthProvider[Proveedor OAuth2<br/><br/>Keycloak / Auth0<br/>Autenticación y autorización]
-        CalendarSystem[Sistema de Calendario<br/><br/>Integración externa<br/>Sincronización de eventos]
+        AuthProvider[Keycloak<br/><br/>OAuth2 Provider<br/>Autenticación y autorización]
+        ExternalSystem[Sistema Externo<br/><br/>Webhook HTTP POST<br/>Confirmaciones/Cancelaciones]
     end
     
-    Patient -->|"Reserva turnos<br/>Consulta disponibilidad<br/>Cancela citas"| System
-    Professional -->|"Gestiona agenda<br/>Configura horarios<br/>Ve citas programadas"| System
+    Patient -->|"POST /appointments<br/>GET /availability<br/>DELETE /appointments"| System
+    Professional -->|"GET /appointments<br/>PUT /schedule<br/>GET /dashboard"| System
     
-    System -->|"Valida credenciales<br/>Obtiene permisos"| AuthProvider
-    System -->|"Envía notificaciones<br/>Sincroniza eventos"| CalendarSystem
+    System -->|"JWT Validation<br/>JWKS Endpoint"| AuthProvider
+    System -->|"HTTP POST<br/>Webhook Events"| ExternalSystem
 ```
 
 ## Nivel 2: Contenedores del Sistema
@@ -46,42 +50,39 @@ Este diagrama descompone el sistema en sus principales contenedores, mostrando l
 
 ```mermaid
 graph TB
-    subgraph "Usuarios"
-        Patient[Paciente<br/>Reserva turnos médicos]
-        Professional[Profesional Médico<br/>Gestiona agenda]
+    subgraph "Clientes API"
+        Patient[Paciente<br/>HTTP Client<br/>Postman/Requests]
+        Professional[Profesional Médico<br/>HTTP Client<br/>Postman/Requests]
     end
     
     subgraph "Sistema de Reserva de Turnos"
-        WebApp[Aplicación Web/Móvil<br/><br/>Frontend SPA<br/>Interfaz de usuario]
-        API[API REST<br/><br/>Node.js + Express + TypeScript<br/>Endpoints REST + WebSocket<br/>Validación JWT]
+        API[API REST<br/><br/>Node.js + Express + TypeScript<br/>Endpoints REST<br/>Validación JWT]
         Worker[Worker de Recordatorios<br/><br/>Node.js<br/>Consumidor RabbitMQ<br/>Reintentos automáticos]
     end
     
     subgraph "Almacenamiento y Comunicación"
-        Database[(PostgreSQL<br/><br/>Transacciones ACID<br/>ORM Prisma/Sequelize<br/>Migraciones)]
+        Database[(PostgreSQL<br/><br/>Transacciones ACID<br/>Prisma ORM<br/>Migraciones automáticas)]
         MessageBroker[RabbitMQ<br/><br/>Colas de mensajes<br/>Reintentos y colas diferidas<br/>Patrón Producer-Consumer]
     end
     
     subgraph "Servicios Externos"
-        AuthProvider[OAuth2 Provider<br/><br/>Keycloak / Auth0<br/>Validación JWT<br/>JWKS Endpoint]
+        AuthProvider[Keycloak<br/><br/>OAuth2 Provider<br/>Validación JWT<br/>JWKS Endpoint]
         ExternalSystem[Sistema Externo<br/><br/>Webhook HTTP POST<br/>Confirmaciones/Cancelaciones]
-        Monitoring[Monitoreo<br/><br/>Prometheus + Grafana<br/>Logs estructurados]
+        Kibana[Kibana<br/><br/>Logs estructurados<br/>Análisis y visualización]
     end
     
-    Patient -->|"HTTPS<br/>REST API"| WebApp
-    Professional -->|"HTTPS<br/>REST API"| WebApp
-    
-    WebApp -->|"HTTPS<br/>REST API<br/>WebSocket"| API
+    Patient -->|"HTTPS<br/>REST API"| API
+    Professional -->|"HTTPS<br/>REST API"| API
     
     API -->|"SQL Transaccional<br/>Prisma ORM"| Database
     API -->|"AMQP<br/>Publish Events"| MessageBroker
     API -->|"HTTPS<br/>JWT Validation"| AuthProvider
-    API -->|"HTTP<br/>Structured Logs"| Monitoring
+    API -->|"HTTP<br/>Structured Logs"| Kibana
     
     Worker -->|"AMQP<br/>Consume Messages"| MessageBroker
     Worker -->|"SQL<br/>Read Appointments"| Database
     Worker -->|"HTTP POST<br/>Webhook"| ExternalSystem
-    Worker -->|"HTTP<br/>Metrics"| Monitoring
+    Worker -->|"HTTP<br/>Structured Logs"| Kibana
 ```
 
 ## Nivel 3: Componentes de la API
@@ -150,36 +151,36 @@ Este diagrama muestra el flujo específico de la transacción clave del sistema 
 
 ```mermaid
 sequenceDiagram
-    participant P as Paciente
+    participant C as Cliente HTTP<br/>(Postman/Request)
     participant API as API REST
-    participant DB as PostgreSQL
+    participant DB as PostgreSQL<br/>(Prisma ORM)
     participant RMQ as RabbitMQ
     participant W as Worker
     participant EXT as Sistema Externo
     
-    Note over P,EXT: Flujo de Reserva de Turnos con Transacciones ACID
+    Note over C,EXT: Flujo de Reserva de Turnos con Transacciones ACID
     
-    P->>API: POST /appointments (JWT Token)
-    API->>API: Validar JWT Token (JWKS)
+    C->>API: POST /appointments<br/>Authorization: Bearer JWT
+    API->>API: Validar JWT Token (Keycloak JWKS)
     
     Note over API,DB: Transacción ACID - Verificación y Bloqueo
     API->>DB: BEGIN TRANSACTION
-    API->>DB: SELECT disponibilidad
-    API->>DB: UPDATE bloqueo_temporal
-    API->>DB: INSERT appointment (PENDING)
+    API->>DB: SELECT disponibilidad (Prisma)
+    API->>DB: UPDATE bloqueo_temporal (Prisma)
+    API->>DB: INSERT appointment PENDING (Prisma)
     API->>DB: COMMIT TRANSACTION
     
     API->>RMQ: Publish "appointment.created" event
-    API->>P: 201 Created (appointment_id)
+    API->>C: 201 Created<br/>{"appointment_id": "123"}
     
     Note over RMQ,W: Procesamiento Asincrónico
     RMQ->>W: Consume "appointment.created"
-    W->>DB: SELECT appointment details
-    W->>EXT: HTTP POST webhook (confirmación)
+    W->>DB: SELECT appointment details (Prisma)
+    W->>EXT: HTTP POST webhook<br/>{"event": "appointment.created"}
     
     alt Webhook Exitoso
         EXT->>W: 200 OK
-        W->>DB: UPDATE status = CONFIRMED
+        W->>DB: UPDATE status = CONFIRMED (Prisma)
         W->>RMQ: Publish "appointment.confirmed"
     else Webhook Fallido
         EXT->>W: 500 Error / Timeout
@@ -187,8 +188,7 @@ sequenceDiagram
         Note over W: Reintento automático con RabbitMQ
     end
     
-    Note over API,P: Notificación en Tiempo Real
-    API->>P: WebSocket: appointment.status_changed
+    Note over C: Cliente puede consultar estado<br/>GET /appointments/{id}
 ```
 
 ## Arquitectura de Despliegue
@@ -198,55 +198,55 @@ Este diagrama muestra cómo se despliega el sistema usando Docker y Docker Compo
 ```mermaid
 graph TB
     subgraph "Docker Environment"
-        subgraph "Frontend Container"
-            WebApp[Web App Container<br/><br/>Nginx + SPA<br/>Static Files]
-        end
-        
         subgraph "Backend Containers"
-            APIContainer[API Container<br/><br/>Node.js + Express<br/>TypeScript + Prisma]
-            WorkerContainer[Worker Container<br/><br/>Node.js<br/>RabbitMQ Consumer]
+            APIContainer[API Container<br/><br/>Node.js + Express<br/>TypeScript + Prisma<br/>REST Endpoints]
+            WorkerContainer[Worker Container<br/><br/>Node.js<br/>RabbitMQ Consumer<br/>Webhook Processing]
         end
         
         subgraph "Data Containers"
-            PostgresContainer[(PostgreSQL Container<br/><br/>ACID Transactions<br/>Persistent Volume)]
-            RabbitMQContainer[RabbitMQ Container<br/><br/>Message Broker<br/>Management UI]
+            PostgresContainer[(PostgreSQL Container<br/><br/>ACID Transactions<br/>Prisma Migrations<br/>Persistent Volume)]
+            RabbitMQContainer[RabbitMQ Container<br/><br/>Message Broker<br/>Management UI<br/>Retry Queues]
         end
         
         subgraph "External Services"
-            AuthContainer[Auth Provider<br/><br/>Keycloak/Auth0<br/>OAuth2 + JWT]
+            KeycloakContainer[Keycloak Container<br/><br/>OAuth2 Provider<br/>JWT Issuance<br/>JWKS Endpoint]
         end
         
         subgraph "Observability Stack"
-            PrometheusContainer[Prometheus Container<br/><br/>Metrics Collection<br/>Time Series DB]
-            GrafanaContainer[Grafana Container<br/><br/>Dashboards<br/>Visualization]
-            LogContainer[Log Aggregation<br/><br/>Structured Logs<br/>JSON Format]
+            KibanaContainer[Kibana Container<br/><br/>Log Analysis<br/>Dashboard Visualization<br/>Structured Logs]
+            ElasticsearchContainer[Elasticsearch Container<br/><br/>Log Storage<br/>Search Engine<br/>JSON Documents]
         end
     end
     
     subgraph "Development Tools"
-        Postman[Postman Collection<br/><br/>API Testing<br/>Endpoint Documentation]
-        DockerCompose[Docker Compose<br/><br/>Multi-container<br/>Development Environment]
+        Postman[Postman Collection<br/><br/>API Testing<br/>Endpoint Documentation<br/>Request Examples]
+        DockerCompose[Docker Compose<br/><br/>Multi-container<br/>Development Environment<br/>Service Orchestration]
     end
     
-    WebApp --> APIContainer
+    subgraph "API Clients"
+        HTTPClients[HTTP Clients<br/><br/>Postman<br/>curl<br/>Custom Applications]
+    end
+    
+    HTTPClients --> APIContainer
     APIContainer --> PostgresContainer
     APIContainer --> RabbitMQContainer
-    APIContainer --> AuthContainer
-    APIContainer --> PrometheusContainer
+    APIContainer --> KeycloakContainer
+    APIContainer --> ElasticsearchContainer
     
     WorkerContainer --> RabbitMQContainer
     WorkerContainer --> PostgresContainer
-    WorkerContainer --> PrometheusContainer
+    WorkerContainer --> ElasticsearchContainer
     
-    PrometheusContainer --> GrafanaContainer
-    APIContainer --> LogContainer
-    WorkerContainer --> LogContainer
+    ElasticsearchContainer --> KibanaContainer
     
     Postman --> APIContainer
     DockerCompose --> APIContainer
     DockerCompose --> WorkerContainer
     DockerCompose --> PostgresContainer
     DockerCompose --> RabbitMQContainer
+    DockerCompose --> KeycloakContainer
+    DockerCompose --> ElasticsearchContainer
+    DockerCompose --> KibanaContainer
 ```
 
 🧩 ADRs – Architectural Decision Records
@@ -264,19 +264,22 @@ Consecuencia:
 
 Las integraciones asincrónicas (recordatorios) usarán eventos y no RPCs.
 
-🧾 ADR 2: Base de datos – PostgreSQL (SQL)
+🧾 ADR 2: Base de datos – PostgreSQL + Prisma ORM
 
-Decisión: Se usa PostgreSQL como base de datos principal.
+Decisión: Se usa PostgreSQL como base de datos principal con Prisma ORM.
 Motivo:
 
-Soporte para transacciones (necesario en reservas).
+Soporte para transacciones ACID (necesario en reservas).
 
-Amplio soporte ORM (Prisma, Sequelize).
+Prisma ORM: Generación automática de tipos TypeScript, migraciones automáticas, cliente type-safe.
 
-Facilidad para manejar seeds y migraciones.
+Facilidad para manejar seeds y migraciones con Prisma CLI.
+
 Consecuencia:
 
-Datos estructurados y consistentes; se requerirá normalización adecuada.
+Datos estructurados y consistentes; Prisma maneja la normalización automáticamente.
+
+Desarrollo más rápido con tipos automáticos y validaciones.
 
 🧾 ADR 3: Asincronía – RabbitMQ
 
@@ -292,26 +295,70 @@ Consecuencia:
 
 El microservicio de recordatorios consumirá mensajes desde RabbitMQ.
 
-🧾 ADR 4: Seguridad – OAuth2 + JWT
+🧾 ADR 4: Seguridad – Keycloak + OAuth2 + JWT
 
-Decisión: Autenticación mediante OAuth2 con tokens JWT.
+Decisión: Autenticación mediante Keycloak como proveedor OAuth2 con tokens JWT.
 Motivo:
 
-Integración estándar con terceros (Google, Auth0, Keycloak).
+Keycloak: Solución completa de gestión de identidad y acceso (IAM).
 
-Tokens firmados que permiten validación sin consultas adicionales.
+Integración estándar OAuth2 con JWKS endpoint para validación de tokens.
+
+Tokens JWT firmados que permiten validación sin consultas adicionales a la BD.
+
 Consecuencia:
 
-Los endpoints protegidos requerirán validación de tokens JWT.
+Los endpoints protegidos requerirán validación de tokens JWT contra JWKS de Keycloak.
 
-🧾 ADR 5: Integración – Webhook
+Desarrollo simplificado sin necesidad de implementar autenticación propia.
 
-Decisión: Implementar integración mediante Webhooks.
+🧾 ADR 5: Integración – Webhook HTTP POST
+
+Decisión: Implementar integración mediante Webhooks HTTP POST.
 Motivo:
 
 Comunicación simple con sistemas externos (notificaciones, confirmaciones).
 
 Evita mantener conexiones persistentes como WebSocket.
+
+Patrón estándar para integraciones asíncronas.
 Consecuencia:
 
 Los eventos de confirmación/cancelación se enviarán por HTTP POST.
+
+El Worker procesará los webhooks con reintentos automáticos via RabbitMQ.
+
+🧾 ADR 6: Observabilidad – Kibana + Elasticsearch
+
+Decisión: Usar Kibana + Elasticsearch para logs estructurados.
+Motivo:
+
+Kibana: Herramienta conocida para análisis y visualización de logs.
+
+Elasticsearch: Motor de búsqueda robusto para logs estructurados JSON.
+
+Integración nativa entre Kibana y Elasticsearch.
+
+Consecuencia:
+
+Logs estructurados en formato JSON enviados a Elasticsearch.
+
+Dashboards y análisis de logs mediante Kibana.
+
+🧾 ADR 7: Scope del Proyecto – Solo Backend API
+
+Decisión: Desarrollo únicamente de APIs REST, sin frontend.
+Motivo:
+
+Enfoque específico en la lógica de negocio y arquitectura backend.
+
+Simplificación del desarrollo y testing.
+
+Los clientes interactuarán mediante HTTP requests directos o Postman.
+Consecuencia:
+
+No se desarrollará interfaz de usuario.
+
+Toda la interacción será mediante endpoints REST documentados.
+
+Testing mediante colección de Postman.
