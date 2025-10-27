@@ -1,0 +1,514 @@
+{
+  "info": {
+    "name": "Reserva Turnos API",
+    "description": "Colección de endpoints para la API de Reserva de Turnos Médicos",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "apiVersion",
+      "value": "v1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Root",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": ["{{baseUrl}}"],
+          "path": [""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Pacientes",
+      "item": [
+        {
+          "name": "Crear Paciente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nuevo.paciente@test.com\",\n  \"firstName\": \"Ana\",\n  \"lastName\": \"Martínez\",\n  \"phone\": \"+5491123456789\",\n  \"dni\": \"87654321\",\n  \"birthDate\": \"1985-03-20\",\n  \"address\": \"Av. Santa Fe 1234, CABA\",\n  \"medicalHistory\": \"Alergia a la penicilina\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Todos los Pacientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Paciente por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients", "{{patientId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Paciente por DNI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients/dni/12345678",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients", "dni", "12345678"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar Paciente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana María\",\n  \"lastName\": \"Martínez López\",\n  \"phone\": \"+5491123456790\",\n  \"address\": \"Av. Santa Fe 1234, CABA\",\n  \"medicalHistory\": \"Alergia a la penicilina, Diabetes tipo 2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients", "{{patientId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar Paciente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/patients/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "patients", "{{patientId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Profesionales",
+      "item": [
+        {
+          "name": "Crear Profesional",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nuevo.doctor@test.com\",\n  \"firstName\": \"Roberto\",\n  \"lastName\": \"Silva\",\n  \"phone\": \"+5491123456792\",\n  \"license\": \"MP99999\",\n  \"specialty\": \"Neurología\",\n  \"experience\": 15,\n  \"consultationFee\": 6000.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Todos los Profesionales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Profesionales por Especialidad",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals/specialty/Cardiología",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals", "specialty", "Cardiología"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Profesional por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals/{{professionalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals", "{{professionalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Profesional por Matrícula",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals/license/MP12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals", "license", "MP12345"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar Profesional",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Roberto Carlos\",\n  \"lastName\": \"Silva González\",\n  \"phone\": \"+5491123456793\",\n  \"specialty\": \"Neurología Clínica\",\n  \"experience\": 16,\n  \"consultationFee\": 6500.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals/{{professionalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals", "{{professionalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar Profesional",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/professionals/{{professionalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "professionals", "{{professionalId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Horarios",
+      "item": [
+        {
+          "name": "Crear Horario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professionalId\": \"{{professionalId}}\",\n  \"dayOfWeek\": 1,\n  \"startTime\": \"09:00\",\n  \"endTime\": \"17:00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/schedules",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "schedules"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Horarios por Profesional",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/schedules/professional/{{professionalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "schedules", "professional", "{{professionalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Horario por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "schedules", "{{scheduleId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar Horario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startTime\": \"08:00\",\n  \"endTime\": \"18:00\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "schedules", "{{scheduleId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar Horario",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "schedules", "{{scheduleId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Turnos",
+      "item": [
+        {
+          "name": "Crear Turno",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": \"{{patientId}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"date\": \"2024-01-15\",\n  \"startTime\": \"10:00\",\n  \"endTime\": \"10:30\",\n  \"notes\": \"Consulta de rutina\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Todos los Turnos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Turnos por Paciente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/patient/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "patient", "{{patientId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Turnos por Profesional",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/professional/{{professionalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "professional", "{{professionalId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Disponibilidad",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/availability/{{professionalId}}?date=2024-01-15",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "availability", "{{professionalId}}"],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2024-01-15"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Turno por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "{{appointmentId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar Turno",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2024-01-16\",\n  \"startTime\": \"11:00\",\n  \"endTime\": \"11:30\",\n  \"status\": \"CONFIRMED\",\n  \"notes\": \"Consulta confirmada\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "{{appointmentId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar Turno",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/{{apiVersion}}/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "{{apiVersion}}", "appointments", "{{appointmentId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

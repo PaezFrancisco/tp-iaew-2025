@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de Usuario base (para futura integración con Keycloak)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  patientProfile     Patient?
+  professionalProfile Professional?
+
+  @@map("users")
+}
+
+// Modelo de Paciente
+model Patient {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  dni         String   @unique
+  birthDate   DateTime
+  address     String?
+  medicalHistory String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("patients")
+}
+
+// Modelo de Profesional Médico
+model Professional {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  license      String   @unique
+  specialty    String
+  experience   Int      @default(0) // años de experiencia
+  consultationFee Decimal @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules    Schedule[]
+  appointments Appointment[]
+
+  @@map("professionals")
+}
+
+// Modelo de Horarios de Profesionales
+model Schedule {
+  id             String   @id @default(cuid())
+  professionalId String
+  dayOfWeek      Int      // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  startTime      String   // Formato HH:MM
+  endTime        String   // Formato HH:MM
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relaciones
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, dayOfWeek])
+  @@map("schedules")
+}
+
+// Modelo de Turnos/Citas
+model Appointment {
+  id             String            @id @default(cuid())
+  patientId      String
+  professionalId String
+  date           DateTime
+  startTime      String            // Formato HH:MM
+  endTime        String            // Formato HH:MM
+  status         AppointmentStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // Relaciones
+  patient        Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, date, startTime])
+  @@map("appointments")
+}
+
+// Enum para estados de turnos
+enum AppointmentStatus {
+  PENDING     // Pendiente de confirmación
+  CONFIRMED   // Confirmado
+  CANCELLED   // Cancelado
+  COMPLETED   // Completado
+  NO_SHOW     // No se presentó
+}

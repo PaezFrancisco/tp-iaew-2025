@@ -1,0 +1,43 @@
+// Esquema de Prisma específico para el servicio de Pacientes
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de Usuario base
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  patientProfile Patient?
+
+  @@map("users")
+}
+
+// Modelo de Paciente
+model Patient {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  dni         String   @unique
+  birthDate   DateTime
+  address     String?
+  medicalHistory String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("patients")
+}
+
