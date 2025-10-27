@@ -1,5 +1,8 @@
 # 🏥 Sistema de Reserva de Turnos de Salud Ambulatoria
 
+**Versión:** v1.0.0  
+**Último commit:** `02c19a1f1e9045150591120d5d5952fc50fe752d`
+
 ## 📘 Proyecto y Dominio
 
 El proyecto consiste en el desarrollo de una **API REST** para la **gestión de reservas de turnos médicos ambulatorios**, permitiendo a los pacientes consultar la disponibilidad de profesionales, reservar turnos y recibir recordatorios automáticos.
