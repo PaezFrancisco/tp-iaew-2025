@@ -1,0 +1,67 @@
+{
+  "name": "health-appointments-api",
+  "version": "1.0.0",
+  "description": "Sistema de Reserva de Turnos Médicos Ambulatorios - API REST",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "worker": "tsx watch src/worker.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "jest",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v"
+  },
+  "keywords": [
+    "health",
+    "appointments",
+    "api",
+    "rest",
+    "prisma",
+    "postgresql",
+    "rabbitmq",
+    "keycloak"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.9.1",
+    "express": "^4.18.2",
+    "amqplib": "^0.10.3",
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "zod": "^3.22.4",
+    "winston": "^3.11.0",
+    "@elastic/elasticsearch": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.6",
+    "@types/amqplib": "^0.10.3",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/cors": "^2.8.17",
+    "prisma": "^5.9.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
+

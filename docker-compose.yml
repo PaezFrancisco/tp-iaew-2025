@@ -1,0 +1,210 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # PostgreSQL - Base de Datos Principal
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: health_app_postgres
+    environment:
+      POSTGRES_DB: health_app_db
+      POSTGRES_USER: health_app_user
+      POSTGRES_PASSWORD: health_app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U health_app_user -d health_app_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - health_app_network
+
+  # ============================================
+  # RabbitMQ - Message Broker
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: health_app_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: health_app_user
+      RABBITMQ_DEFAULT_PASS: health_app_password
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - health_app_network
+
+  # ============================================
+  # Keycloak - OAuth2 Provider
+  # ============================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: health_app_keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_password
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - health_app_network
+
+  # ============================================
+  # Elasticsearch - Log Storage
+  # ============================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: health_app_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - health_app_network
+
+  # ============================================
+  # Kibana - Log Visualization
+  # ============================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.9.0
+    container_name: health_app_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - health_app_network
+
+  # ============================================
+  # API REST - Servicio Principal
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: health_app_api
+    environment:
+      # Database
+      DATABASE_URL: postgresql://health_app_user:health_app_password@postgres:5432/health_app_db
+      
+      # RabbitMQ
+      RABBITMQ_URL: amqp://health_app_user:health_app_password@rabbitmq:5672
+      
+      # Keycloak
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: health_app
+      KEYCLOAK_CLIENT_ID: health_app_api
+      
+      # Elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      
+      # Server
+      PORT: 3000
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
+    networks:
+      - health_app_network
+
+  # ============================================
+  # Worker - Procesamiento Asíncrono
+  # ============================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: health_app_worker
+    environment:
+      # Database
+      DATABASE_URL: postgresql://health_app_user:health_app_password@postgres:5432/health_app_db
+      
+      # RabbitMQ
+      RABBITMQ_URL: amqp://health_app_user:health_app_password@rabbitmq:5672
+      
+      # Webhook
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://httpbin.org/post}
+      
+      # Elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      
+      NODE_ENV: development
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    depends_on:
+      - postgres
+      - rabbitmq
+    command: npm run worker
+    networks:
+      - health_app_network
+
+# ============================================
+# VOLÚMENES PERSISTENTES
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+
+# ============================================
+# REDES
+# ============================================
+networks:
+  health_app_network:
+    driver: bridge
+

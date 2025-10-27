@@ -1,0 +1,1142 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Reserva de Turnos Médicos Ambulatorios
+  version: 1.0.0
+  description: |
+    API REST para la gestión de reservas de turnos médicos ambulatorios.
+    Permite a los pacientes consultar disponibilidad de profesionales, reservar turnos y recibir recordatorios automáticos.
+    
+    **Scope:** Solo backend API, sin frontend.
+    
+    **Autenticación:** OAuth2 + JWT mediante Keycloak
+    
+    **Formato:** Todos los endpoints aceptan y devuelven JSON
+  contact:
+    name: Equipo de Desarrollo
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Servidor de desarrollo local
+  - url: https://api.example.com
+    description: Servidor de producción
+
+tags:
+  - name: Auth
+    description: Autenticación y autorización (Keycloak)
+  - name: Patients
+    description: Gestión de pacientes
+  - name: Professionals
+    description: Gestión de profesionales médicos
+  - name: Schedules
+    description: Gestión de horarios y disponibilidad
+  - name: Appointments
+    description: Reserva y gestión de turnos
+
+paths:
+  # ============================================
+  # AUTENTICACIÓN
+  # ============================================
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Iniciar sesión y obtener token JWT
+      description: Autenticación mediante Keycloak OAuth2. Devuelve token JWT para usar en requests subsiguientes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "patient1"
+                  description: Usuario (paciente o profesional)
+                password:
+                  type: string
+                  example: "password123"
+                  format: password
+      responses:
+        '200':
+          description: Autenticación exitosa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  token_type:
+                    type: string
+                    example: "Bearer"
+                  expires_in:
+                    type: integer
+                    example: 3600
+              example:
+                access_token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                token_type: "Bearer"
+                expires_in: 3600
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ============================================
+  # PACIENTES
+  # ============================================
+  /patients:
+    get:
+      tags:
+        - Patients
+      summary: Listar pacientes
+      description: Obtiene la lista de pacientes (requiere rol ADMIN)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Lista de pacientes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patient'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "Juan Pérez"
+                    email: "juan.perez@example.com"
+                    phone: "+54 11 1234-5678"
+                    createdAt: "2024-01-15T10:00:00Z"
+                    updatedAt: "2024-01-15T10:00:00Z"
+                  - id: "660e8400-e29b-41d4-a716-446655440001"
+                    name: "María García"
+                    email: "maria.garcia@example.com"
+                    phone: "+54 11 2345-6789"
+                    createdAt: "2024-01-16T10:00:00Z"
+                    updatedAt: "2024-01-16T10:00:00Z"
+                pagination:
+                  page: 1
+                  limit: 10
+                  total: 2
+                  totalPages: 1
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+    post:
+      tags:
+        - Patients
+      summary: Crear paciente
+      description: Registra un nuevo paciente en el sistema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePatientRequest'
+            example:
+              name: "Carlos Rodríguez"
+              email: "carlos.rodriguez@example.com"
+              phone: "+54 11 3456-7890"
+              dateOfBirth: "1990-05-15"
+      responses:
+        '201':
+          description: Paciente creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+              example:
+                id: "770e8400-e29b-41d4-a716-446655440002"
+                name: "Carlos Rodríguez"
+                email: "carlos.rodriguez@example.com"
+                phone: "+54 11 3456-7890"
+                dateOfBirth: "1990-05-15"
+                createdAt: "2024-01-17T10:00:00Z"
+                updatedAt: "2024-01-17T10:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /patients/{patientId}:
+    get:
+      tags:
+        - Patients
+      summary: Obtener paciente por ID
+      description: Obtiene la información de un paciente específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Información del paciente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Patients
+      summary: Actualizar paciente
+      description: Actualiza la información de un paciente existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePatientRequest'
+      responses:
+        '200':
+          description: Paciente actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /patients/{patientId}/appointments:
+    get:
+      tags:
+        - Patients
+        - Appointments
+      summary: Listar turnos de un paciente
+      description: Obtiene todos los turnos asociados a un paciente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, CANCELLED, COMPLETED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de turnos del paciente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  # ============================================
+  # PROFESIONALES
+  # ============================================
+  /professionals:
+    get:
+      tags:
+        - Professionals
+      summary: Listar profesionales
+      description: Obtiene la lista de profesionales médicos disponibles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: specialty
+          in: query
+          schema:
+            type: string
+            description: Filtrar por especialidad
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de profesionales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Professional'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - Professionals
+      summary: Crear profesional
+      description: Registra un nuevo profesional médico en el sistema (requiere rol ADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProfessionalRequest'
+            example:
+              name: "Dra. Ana Martínez"
+              email: "ana.martinez@example.com"
+              phone: "+54 11 4567-8901"
+              specialty: "Cardiología"
+              licenseNumber: "CARD-12345"
+      responses:
+        '201':
+          description: Profesional creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Professional'
+
+  /professionals/{professionalId}:
+    get:
+      tags:
+        - Professionals
+      summary: Obtener profesional por ID
+      description: Obtiene la información de un profesional específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Información del profesional
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Professional'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================
+  # HORARIOS Y DISPONIBILIDAD
+  # ============================================
+  /professionals/{professionalId}/schedule:
+    get:
+      tags:
+        - Schedules
+      summary: Obtener horarios de un profesional
+      description: Obtiene la agenda y horarios disponibles de un profesional
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2024-02-01"
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2024-02-28"
+      responses:
+        '200':
+          description: Horarios del profesional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  professional:
+                    $ref: '#/components/schemas/Professional'
+                  schedule:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ScheduleSlot'
+
+    put:
+      tags:
+        - Schedules
+      summary: Actualizar horario de un profesional
+      description: Permite a un profesional actualizar su agenda (requiere rol PROFESSIONAL)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slots:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateScheduleSlotRequest'
+      responses:
+        '200':
+          description: Horario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedule:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ScheduleSlot'
+
+  /professionals/{professionalId}/availability:
+    get:
+      tags:
+        - Schedules
+      summary: Consultar disponibilidad de turnos
+      description: Obtiene los horarios disponibles para reservar turnos con un profesional específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2024-02-15"
+      responses:
+        '200':
+          description: Horarios disponibles para reservar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  professional:
+                    $ref: '#/components/schemas/Professional'
+                  date:
+                    type: string
+                    format: date
+                    example: "2024-02-15"
+                  availableSlots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AvailableSlot'
+              example:
+                professional:
+                  id: "880e8400-e29b-41d4-a716-446655440003"
+                  name: "Dr. Roberto Silva"
+                  specialty: "Medicina General"
+                date: "2024-02-15"
+                availableSlots:
+                  - startTime: "09:00"
+                    endTime: "09:30"
+                    available: true
+                  - startTime: "09:30"
+                    endTime: "10:00"
+                    available: true
+                  - startTime: "10:00"
+                    endTime: "10:30"
+                    available: false
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================
+  # TURNOS / RESERVAS
+  # ============================================
+  /appointments:
+    get:
+      tags:
+        - Appointments
+      summary: Listar todos los turnos
+      description: Obtiene todos los turnos (requiere rol ADMIN o PROFESSIONAL)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, CANCELLED, COMPLETED]
+        - name: professionalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: patientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de turnos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Appointments
+      summary: Crear turno / Reservar turno
+      description: |
+        Crea una nueva reserva de turno. 
+        
+        **Flujo:**
+        1. Verifica disponibilidad del horario
+        2. Bloquea temporalmente el slot
+        3. Crea el appointment en estado PENDING
+        4. Publica evento "appointment.created" a RabbitMQ
+        5. Retorna ID del appointment
+        
+        El Worker procesará asincrónicamente y confirmará mediante webhook.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+            example:
+              professionalId: "880e8400-e29b-41d4-a716-446655440003"
+              patientId: "550e8400-e29b-41d4-a716-446655440000"
+              appointmentDate: "2024-02-15"
+              startTime: "10:00"
+              endTime: "10:30"
+              reason: "Consulta médica de rutina"
+      responses:
+        '201':
+          description: Turno creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointment:
+                    $ref: '#/components/schemas/Appointment'
+                  message:
+                    type: string
+                    example: "Turno creado exitosamente. Estado: PENDING"
+              example:
+                appointment:
+                  id: "990e8400-e29b-41d4-a716-446655440004"
+                  professionalId: "880e8400-e29b-41d4-a716-446655440003"
+                  patientId: "550e8400-e29b-41d4-a716-446655440000"
+                  appointmentDate: "2024-02-15"
+                  startTime: "10:00"
+                  endTime: "10:30"
+                  status: "PENDING"
+                  reason: "Consulta médica de rutina"
+                  createdAt: "2024-01-18T10:00:00Z"
+                message: "Turno creado exitosamente. Estado: PENDING"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+          description: Horario no disponible o datos inválidos
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+          description: Profesional o paciente no encontrado
+        '409':
+          $ref: '#/components/responses/ConflictError'
+          description: Turno ya existe para ese horario
+
+  /appointments/{appointmentId}:
+    get:
+      tags:
+        - Appointments
+      summary: Obtener turno por ID
+      description: Obtiene la información detallada de un turno específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Información del turno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentWithDetails'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      tags:
+        - Appointments
+      summary: Actualizar estado de turno
+      description: Actualiza el estado de un turno (CONFIRMED, CANCELLED, COMPLETED)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [CONFIRMED, CANCELLED, COMPLETED]
+                  example: "CONFIRMED"
+      responses:
+        '200':
+          description: Estado actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      tags:
+        - Appointments
+      summary: Cancelar turno
+      description: Cancela un turno existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Turno cancelado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Turno cancelado exitosamente"
+                  appointment:
+                    $ref: '#/components/schemas/Appointment'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+          description: No se puede cancelar un turno ya confirmado
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Autenticación mediante OAuth2 + JWT.
+        Token obtenido mediante endpoint /auth/login.
+        Ejemplo: Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+
+  schemas:
+    # ============ PACIENTES ============
+    Patient:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan.perez@example.com"
+        phone:
+          type: string
+          example: "+54 11 1234-5678"
+        dateOfBirth:
+          type: string
+          format: date
+          example: "1985-03-20"
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00Z"
+
+    CreatePatientRequest:
+      type: object
+      required:
+        - name
+        - email
+        - phone
+      properties:
+        name:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan.perez@example.com"
+        phone:
+          type: string
+          example: "+54 11 1234-5678"
+        dateOfBirth:
+          type: string
+          format: date
+          example: "1985-03-20"
+
+    UpdatePatientRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+
+    # ============ PROFESIONALES ============
+    Professional:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        name:
+          type: string
+          example: "Dr. Roberto Silva"
+        email:
+          type: string
+          format: email
+          example: "roberto.silva@example.com"
+        phone:
+          type: string
+          example: "+54 11 4567-8901"
+        specialty:
+          type: string
+          example: "Medicina General"
+        licenseNumber:
+          type: string
+          example: "MG-12345"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-14T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-14T10:00:00Z"
+
+    CreateProfessionalRequest:
+      type: object
+      required:
+        - name
+        - email
+        - phone
+        - specialty
+        - licenseNumber
+      properties:
+        name:
+          type: string
+          example: "Dr. Roberto Silva"
+        email:
+          type: string
+          format: email
+          example: "roberto.silva@example.com"
+        phone:
+          type: string
+          example: "+54 11 4567-8901"
+        specialty:
+          type: string
+          example: "Medicina General"
+        licenseNumber:
+          type: string
+          example: "MG-12345"
+
+    # ============ HORARIOS ============
+    ScheduleSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        professionalId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+          example: "2024-02-15"
+        startTime:
+          type: string
+          format: time
+          example: "09:00"
+        endTime:
+          type: string
+          format: time
+          example: "09:30"
+        isAvailable:
+          type: boolean
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateScheduleSlotRequest:
+      type: object
+      required:
+        - date
+        - startTime
+        - endTime
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-02-15"
+        startTime:
+          type: string
+          format: time
+          example: "09:00"
+        endTime:
+          type: string
+          format: time
+          example: "09:30"
+        isAvailable:
+          type: boolean
+          default: true
+
+    AvailableSlot:
+      type: object
+      properties:
+        startTime:
+          type: string
+          format: time
+          example: "09:00"
+        endTime:
+          type: string
+          format: time
+          example: "09:30"
+        available:
+          type: boolean
+          example: true
+
+    # ============ TURNOS ============
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "990e8400-e29b-41d4-a716-446655440004"
+        professionalId:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        patientId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        appointmentDate:
+          type: string
+          format: date
+          example: "2024-02-15"
+        startTime:
+          type: string
+          format: time
+          example: "10:00"
+        endTime:
+          type: string
+          format: time
+          example: "10:30"
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, CANCELLED, COMPLETED]
+          example: "PENDING"
+        reason:
+          type: string
+          example: "Consulta médica de rutina"
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-18T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-18T10:00:00Z"
+
+    AppointmentWithDetails:
+      allOf:
+        - $ref: '#/components/schemas/Appointment'
+        - type: object
+          properties:
+            professional:
+              $ref: '#/components/schemas/Professional'
+            patient:
+              $ref: '#/components/schemas/Patient'
+
+    CreateAppointmentRequest:
+      type: object
+      required:
+        - professionalId
+        - patientId
+        - appointmentDate
+        - startTime
+        - endTime
+      properties:
+        professionalId:
+          type: string
+          format: uuid
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        patientId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        appointmentDate:
+          type: string
+          format: date
+          example: "2024-02-15"
+        startTime:
+          type: string
+          format: time
+          example: "10:00"
+        endTime:
+          type: string
+          format: time
+          example: "10:30"
+        reason:
+          type: string
+          example: "Consulta médica de rutina"
+
+    # ============ PAGINACIÓN ============
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 50
+        totalPages:
+          type: integer
+          example: 5
+
+    # ============ ERRORES ============
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Error description"
+        code:
+          type: string
+          example: "ERROR_CODE"
+        details:
+          type: object
+          additionalProperties: true
+
+  responses:
+    BadRequestError:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Invalid request data"
+            code: "BAD_REQUEST"
+
+    UnauthorizedError:
+      description: No autenticado o token inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Unauthorized - Invalid or missing token"
+            code: "UNAUTHORIZED"
+
+    ForbiddenError:
+      description: No tiene permisos para esta operación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Forbidden - Insufficient permissions"
+            code: "FORBIDDEN"
+
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Resource not found"
+            code: "NOT_FOUND"
+
+    ConflictError:
+      description: Conflicto (recurso duplicado)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Resource already exists"
+            code: "CONFLICT"
+
+    InternalServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Internal server error"
+            code: "INTERNAL_SERVER_ERROR"
+

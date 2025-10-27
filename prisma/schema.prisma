@@ -1,0 +1,140 @@
+// ============================================
+// SISTEMA DE RESERVA DE TURNOS MÉDICOS
+// Modelo de Datos con Prisma ORM
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TABLA: Patient (Paciente)
+// ============================================
+model Patient {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(255)
+  email       String   @unique @db.VarChar(255)
+  phone       String   @db.VarChar(50)
+  dateOfBirth DateTime? @map("date_of_birth")
+  
+  // Relaciones
+  appointments Appointment[]
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@map("patients")
+}
+
+// ============================================
+// TABLA: Professional (Profesional Médico)
+// ============================================
+model Professional {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(255)
+  email         String   @unique @db.VarChar(255)
+  phone         String   @db.VarChar(50)
+  specialty     String   @db.VarChar(100)
+  licenseNumber String   @unique @map("license_number") @db.VarChar(50)
+  
+  // Relaciones
+  schedule      ScheduleSlot[]
+  appointments  Appointment[]
+  
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([specialty])
+  @@map("professionals")
+}
+
+// ============================================
+// TABLA: ScheduleSlot (Horario de Profesional)
+// ============================================
+model ScheduleSlot {
+  id            String  @id @default(uuid())
+  professionalId String @map("professional_id")
+  
+  // Fecha y hora del slot
+  date          DateTime @db.Date
+  startTime     String  @map("start_time") @db.VarChar(10) // Format: "09:00"
+  endTime       String  @map("end_time") @db.VarChar(10)   // Format: "09:30"
+  
+  // Disponibilidad
+  isAvailable   Boolean @default(true) @map("is_available")
+  isBlocked     Boolean @default(false) @map("is_blocked")
+  blockedUntil  DateTime? @map("blocked_until")
+  
+  // Relaciones
+  professional  Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([professionalId, date, startTime])
+  @@index([professionalId, date])
+  @@index([date, isAvailable])
+  @@map("schedule_slots")
+}
+
+// ============================================
+// TABLA: Appointment (Turno / Reserva)
+// ============================================
+model Appointment {
+  id              String   @id @default(uuid())
+  professionalId  String   @map("professional_id")
+  patientId       String   @map("patient_id")
+  
+  // Fecha y hora de la cita
+  appointmentDate DateTime @map("appointment_date") @db.Date
+  startTime       String  @map("start_time") @db.VarChar(10)
+  endTime         String  @map("end_time") @db.VarChar(10)
+  
+  // Estado del turno
+  status          AppointmentStatus @default(PENDING)
+  reason          String? @db.VarChar(500)
+  
+  // Webhook tracking
+  webhookSent     Boolean @default(false) @map("webhook_sent")
+  webhookAttempts Int    @default(0) @map("webhook_attempts")
+  webhookResponse String? @map("webhook_response") @db.Text
+  lastWebhookAt   DateTime? @map("last_webhook_at")
+  
+  // Relaciones
+  professional    Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  patient         Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([professionalId, appointmentDate, startTime])
+  @@index([professionalId, appointmentDate])
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("appointments")
+}
+
+// ============================================
+// ENUM: AppointmentStatus (Estados de Turno)
+// ============================================
+enum AppointmentStatus {
+  PENDING    // Turno creado, pendiente de confirmación
+  CONFIRMED  // Turno confirmado por el profesional
+  CANCELLED  // Turno cancelado
+  COMPLETED  // Turno completado
+  
+  @@map("appointment_status")
+}
+
