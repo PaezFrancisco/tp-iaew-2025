@@ -5,37 +5,47 @@
 
 -- Crear base de datos para Keycloak
 CREATE DATABASE keycloak_db;
-CREATE USER keycloak_user WITH PASSWORD 'keycloak_password';
+
+-- Crear usuario para Keycloak
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'keycloak_user') THEN
+    CREATE USER keycloak_user WITH PASSWORD 'keycloak_password';
+  END IF;
+END
+$$;
+
 GRANT ALL PRIVILEGES ON DATABASE keycloak_db TO keycloak_user;
 
--- Crear base de datos principal de la aplicación
-CREATE DATABASE health_app_db;
-CREATE USER health_app_user WITH PASSWORD 'health_app_password';
+-- Conectar a keycloak_db para otorgar permisos en el schema
+\c keycloak_db
+
+-- Hacer que keycloak_user sea el dueño del schema public (necesario para Keycloak)
+ALTER SCHEMA public OWNER TO keycloak_user;
+
+-- Crear base de datos principal de la aplicación (ya existe por POSTGRES_DB, pero por si acaso)
+-- CREATE DATABASE health_app_db; -- Ya se crea automáticamente por POSTGRES_DB
+
+-- Crear usuario para la aplicación
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'health_app_user') THEN
+    CREATE USER health_app_user WITH PASSWORD 'health_app_password';
+  END IF;
+END
+$$;
+
 GRANT ALL PRIVILEGES ON DATABASE health_app_db TO health_app_user;
 
--- Conectar a health_app_db para crear extensiones
-\c health_app_db;
+-- Crear extensiones en health_app_db
+-- Conectarse a health_app_db usando psql desde el script
+\c health_app_db
 
--- Crear extensiones necesarias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Otorgar permisos al usuario de la aplicación
-GRANT ALL PRIVILEGES ON DATABASE health_app_db TO health_app_user;
+-- Otorgar permisos adicionales
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO health_app_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO health_app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO health_app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO health_app_user;
-
--- Crear índices adicionales si es necesario
--- (Prisma manejará la mayoría de los índices automáticamente)
-
--- ============================================
--- NOTAS
--- ============================================
--- Este script se ejecuta automáticamente cuando se inicia el contenedor PostgreSQL
--- por primera vez. Solo se ejecuta una vez.
--- 
--- Las migraciones de Prisma se ejecutarán después mediante:
--- npx prisma migrate dev
-

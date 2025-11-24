@@ -9,7 +9,9 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    curl
+    curl \
+    openssl \
+    openssl-dev
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -18,9 +20,12 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
+COPY scripts ./scripts/
 
 # Instalar dependencias
-RUN npm ci
+# Usar npm install en lugar de npm ci para mayor flexibilidad
+# npm ci requiere package-lock.json, npm install lo genera si no existe
+RUN npm install --legacy-peer-deps
 
 # Copiar código fuente
 COPY src ./src

@@ -1,0 +1,836 @@
+{
+	"info": {
+		"_postman_id": "health-appointments-api-2025",
+		"name": "Health Appointments API",
+		"description": "Colección completa de endpoints para el Sistema de Reserva de Turnos Médicos Ambulatorios. Ejecutar en orden: Setup → Get Data → Create Appointment → Verify",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		},
+		{
+			"key": "keycloak_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "realm",
+			"value": "health_app",
+			"type": "string"
+		},
+		{
+			"key": "client_id",
+			"value": "health_app_api",
+			"type": "string"
+		},
+		{
+			"key": "username",
+			"value": "admin",
+			"type": "string"
+		},
+		{
+			"key": "password",
+			"value": "admin",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "patient_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "professional_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appointment_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appointment_date",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appointment_time",
+			"value": "10:00",
+			"type": "string"
+		},
+		{
+			"key": "appointment_time_end",
+			"value": "10:30",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "01 - Setup",
+			"description": "Configuración inicial: autenticación y verificación del sistema",
+			"item": [
+				{
+					"name": "Get Access Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('access_token', response.access_token);",
+									"    console.log('✅ Token guardado:', response.access_token.substring(0, 20) + '...');",
+									"} else {",
+									"    console.log('❌ Error obteniendo token:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "{{username}}",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{password}}",
+									"type": "text"
+								},
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{client_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token",
+							"host": ["{{keycloak_url}}"],
+							"path": ["realms", "{{realm}}", "protocol", "openid-connect", "token"]
+						},
+						"description": "Obtiene un token de acceso de Keycloak. DEBE ejecutarse primero."
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Verifica que la API esté funcionando correctamente"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "02 - Get Data from Seed",
+			"description": "Obtener datos del seed: pacientes, profesionales y horarios disponibles",
+			"item": [
+				{
+					"name": "Get All Patients",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    console.log('📋 Respuesta completa:', JSON.stringify(response, null, 2));",
+									"    ",
+									"    // Verificar diferentes estructuras de respuesta",
+									"    let patients = null;",
+									"    if (response.patients) {",
+									"        patients = response.patients;",
+									"    } else if (Array.isArray(response)) {",
+									"        patients = response;",
+									"    } else if (response.data && Array.isArray(response.data)) {",
+									"        patients = response.data;",
+									"    }",
+									"    ",
+									"    if (patients && patients.length > 0) {",
+									"        // Usar el primer paciente del seed",
+									"        const patientId = patients[0].id;",
+									"        pm.collectionVariables.set('patient_id', patientId);",
+									"        console.log('✅ Patient ID guardado:', patientId);",
+									"        console.log('   Nombre:', patients[0].name);",
+									"        console.log('   Email:', patients[0].email);",
+									"    } else {",
+									"        console.log('⚠️ No hay pacientes en la respuesta.');",
+									"        console.log('   Estructura recibida:', Object.keys(response));",
+									"    }",
+									"} else {",
+									"    console.log('❌ Error en la respuesta:', pm.response.code);",
+									"    console.log('   Body:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/patients?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["patients"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Obtiene la lista de pacientes. Usa el primer paciente del seed."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Professionals",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    console.log('📋 Respuesta completa:', JSON.stringify(response, null, 2));",
+									"    ",
+									"    // Verificar diferentes estructuras de respuesta",
+									"    let professionals = null;",
+									"    if (response.professionals) {",
+									"        professionals = response.professionals;",
+									"    } else if (Array.isArray(response)) {",
+									"        professionals = response;",
+									"    } else if (response.data && Array.isArray(response.data)) {",
+									"        professionals = response.data;",
+									"    }",
+									"    ",
+									"    if (professionals && professionals.length > 0) {",
+									"        // Usar el primer profesional del seed",
+									"        const professionalId = professionals[0].id;",
+									"        pm.collectionVariables.set('professional_id', professionalId);",
+									"        console.log('✅ Professional ID guardado:', professionalId);",
+									"        console.log('   Nombre:', professionals[0].name);",
+									"        console.log('   Email:', professionals[0].email);",
+									"    } else {",
+									"        console.log('⚠️ No hay profesionales en la respuesta.');",
+									"        console.log('   Estructura recibida:', Object.keys(response));",
+									"    }",
+									"} else {",
+									"    console.log('❌ Error en la respuesta:', pm.response.code);",
+									"    console.log('   Body:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/professionals?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["professionals"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Obtiene la lista de profesionales. Usa el primer profesional del seed."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Professional Availability",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Calcular fecha de mañana (o próximo día laborable)",
+									"const today = new Date();",
+									"today.setHours(0, 0, 0, 0);",
+									"let tomorrow = new Date(today);",
+									"tomorrow.setDate(tomorrow.getDate() + 1);",
+									"",
+									"// Si es fin de semana, avanzar al próximo lunes",
+									"while (tomorrow.getDay() === 0 || tomorrow.getDay() === 6) {",
+									"    tomorrow.setDate(tomorrow.getDate() + 1);",
+									"}",
+									"",
+									"const dateStr = tomorrow.toISOString().split('T')[0];",
+									"pm.collectionVariables.set('appointment_date', dateStr);",
+									"pm.variables.set('date', dateStr);",
+									"console.log('📅 Fecha calculada para disponibilidad:', dateStr);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    console.log('📋 Respuesta de disponibilidad:', JSON.stringify(response, null, 2));",
+									"    ",
+									"    if (response.availableSlots && response.availableSlots.length > 0) {",
+									"        // Filtrar solo los slots que están disponibles (available: true)",
+									"        const availableSlots = response.availableSlots.filter(s => s.available === true);",
+									"        ",
+									"        if (availableSlots.length > 0) {",
+									"            // Usar el primer horario disponible (10:00 si existe, sino el primero)",
+									"            let selectedSlot = availableSlots.find(s => s.startTime === '10:00' && s.available === true);",
+									"            if (!selectedSlot) {",
+									"                selectedSlot = availableSlots[0];",
+									"            }",
+									"            pm.collectionVariables.set('appointment_time', selectedSlot.startTime);",
+									"            console.log('✅ Horario disponible seleccionado:', selectedSlot.startTime, '-', selectedSlot.endTime);",
+									"            console.log('   Total de slots disponibles:', availableSlots.length);",
+									"        } else {",
+									"            console.log('⚠️ No hay horarios disponibles (todos están ocupados o bloqueados).');",
+									"            console.log('   Total de slots en la respuesta:', response.availableSlots.length);",
+									"        }",
+									"    } else {",
+									"        console.log('⚠️ No hay horarios configurados para esta fecha.');",
+									"        console.log('   Respuesta completa:', JSON.stringify(response, null, 2));",
+									"    }",
+									"} else {",
+									"    console.log('❌ Error obteniendo disponibilidad:', pm.response.code);",
+									"    console.log('   Response:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/professionals/{{professional_id}}/availability?date={{date}}",
+							"host": ["{{base_url}}"],
+							"path": ["professionals", "{{professional_id}}", "availability"],
+							"query": [
+								{
+									"key": "date",
+									"value": "{{date}}",
+									"description": "Fecha en formato YYYY-MM-DD (calculada automáticamente)"
+								}
+							]
+						},
+						"description": "Obtiene los horarios disponibles para el profesional en la fecha calculada (mañana o próximo día laborable)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "03 - Create Appointment",
+			"description": "Crear un appointment usando los datos obtenidos",
+			"item": [
+				{
+					"name": "Create Appointment",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Validar que tenemos todos los IDs necesarios",
+									"const patientId = pm.collectionVariables.get('patient_id');",
+									"const professionalId = pm.collectionVariables.get('professional_id');",
+									"",
+									"if (!patientId) {",
+									"    throw new Error('❌ patient_id no está seteado. Ejecuta primero \"Get All Patients\"');",
+									"}",
+									"",
+									"if (!professionalId) {",
+									"    throw new Error('❌ professional_id no está seteado. Ejecuta primero \"Get All Professionals\"');",
+									"}",
+									"",
+									"// Asegurar que tenemos la fecha calculada",
+									"let date = pm.collectionVariables.get('appointment_date');",
+									"if (!date) {",
+									"    const today = new Date();",
+									"    today.setHours(0, 0, 0, 0);",
+									"    let tomorrow = new Date(today);",
+									"    tomorrow.setDate(tomorrow.getDate() + 1);",
+									"    while (tomorrow.getDay() === 0 || tomorrow.getDay() === 6) {",
+									"        tomorrow.setDate(tomorrow.getDate() + 1);",
+									"    }",
+									"    date = tomorrow.toISOString().split('T')[0];",
+									"    pm.collectionVariables.set('appointment_date', date);",
+									"}",
+									"",
+									"// Asegurar que tenemos un horario",
+									"let time = pm.collectionVariables.get('appointment_time');",
+									"if (!time) {",
+									"    time = '10:00';",
+									"    pm.collectionVariables.set('appointment_time', time);",
+									"}",
+									"",
+									"// Calcular endTime (30 minutos después)",
+									"const [hours, minutes] = time.split(':').map(Number);",
+									"let endHours = hours;",
+									"let endMinutes = minutes + 30;",
+									"if (endMinutes >= 60) {",
+									"    endHours += 1;",
+									"    endMinutes = 0;",
+									"}",
+									"const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;",
+									"pm.collectionVariables.set('appointment_time_end', endTime);",
+									"",
+									"// Validar que todas las variables estén seteadas",
+									"console.log('📝 Validando variables antes de crear appointment:');",
+									"console.log('   ✅ Patient ID:', patientId);",
+									"console.log('   ✅ Professional ID:', professionalId);",
+									"console.log('   ✅ Fecha:', date);",
+									"console.log('   ✅ Horario:', time, '-', endTime);",
+									"",
+									"// Construir y validar el body del request",
+									"const bodyData = {",
+									"    professionalId: professionalId,",
+									"    patientId: patientId,",
+									"    appointmentDate: date,",
+									"    startTime: time,",
+									"    endTime: endTime,",
+									"    reason: 'Consulta médica de rutina'",
+									"};",
+									"",
+									"// Validar que ningún campo esté vacío",
+									"const missingFields = [];",
+									"if (!bodyData.professionalId || bodyData.professionalId === '') missingFields.push('professionalId');",
+									"if (!bodyData.patientId || bodyData.patientId === '') missingFields.push('patientId');",
+									"if (!bodyData.appointmentDate || bodyData.appointmentDate === '') missingFields.push('appointmentDate');",
+									"if (!bodyData.startTime || bodyData.startTime === '') missingFields.push('startTime');",
+									"if (!bodyData.endTime || bodyData.endTime === '') missingFields.push('endTime');",
+									"",
+									"if (missingFields.length > 0) {",
+									"    throw new Error('❌ Faltan campos requeridos: ' + missingFields.join(', '));",
+									"}",
+									"",
+									"console.log('📦 Body que se enviará:', JSON.stringify(bodyData, null, 2));",
+									"",
+									"// Actualizar el body del request con los valores reales",
+									"// Esto asegura que las variables se expandan correctamente",
+									"const requestBody = JSON.stringify(bodyData);",
+									"pm.request.body.raw = requestBody;"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('appointment_id', response.appointment.id);",
+									"    console.log('✅ Appointment creado exitosamente!');",
+									"    console.log('   ID:', response.appointment.id);",
+									"    console.log('   Estado:', response.appointment.status);",
+									"    console.log('   Fecha:', response.appointment.appointmentDate);",
+									"    console.log('   Horario:', response.appointment.startTime, '-', response.appointment.endTime);",
+									"} else {",
+									"    console.log('❌ Error creando appointment');",
+									"    console.log('   Status:', pm.response.code);",
+									"    console.log('   Response:', pm.response.text());",
+									"    ",
+									"    // Mostrar las variables actuales para debug",
+									"    console.log('🔍 Variables actuales:');",
+									"    console.log('   professional_id:', pm.collectionVariables.get('professional_id'));",
+									"    console.log('   patient_id:', pm.collectionVariables.get('patient_id'));",
+									"    console.log('   appointment_date:', pm.collectionVariables.get('appointment_date'));",
+									"    console.log('   appointment_time:', pm.collectionVariables.get('appointment_time'));",
+									"    console.log('   appointment_time_end:', pm.collectionVariables.get('appointment_time_end'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"professionalId\": \"{{professional_id}}\",\n    \"patientId\": \"{{patient_id}}\",\n    \"appointmentDate\": \"{{appointment_date}}\",\n    \"startTime\": \"{{appointment_time}}\",\n    \"endTime\": \"{{appointment_time_end}}\",\n    \"reason\": \"Consulta médica de rutina\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments",
+							"host": ["{{base_url}}"],
+							"path": ["appointments"]
+						},
+						"description": "Crea un appointment usando los datos obtenidos anteriormente. La fecha y hora se calculan automáticamente."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "04 - Verify Appointment",
+			"description": "Verificar que el appointment se creó correctamente",
+			"item": [
+				{
+					"name": "Get Appointment by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments/{{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "{{appointment_id}}"]
+						},
+						"description": "Obtiene los detalles del appointment creado"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Appointments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/appointments?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["appointments"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Lista todos los appointments"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "05 - Additional Endpoints",
+			"description": "Endpoints adicionales para gestión completa",
+			"item": [
+				{
+					"name": "Patients",
+					"item": [
+						{
+							"name": "Create Patient",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('patient_id', response.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Juan Pérez\",\n    \"email\": \"juan.perez@example.com\",\n    \"phone\": \"+54 11 1234-5678\",\n    \"dateOfBirth\": \"1990-01-15\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/patients",
+									"host": ["{{base_url}}"],
+									"path": ["patients"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Patient by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/patients/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["patients", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Patient",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Juan Pérez Actualizado\",\n    \"phone\": \"+54 11 9999-9999\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/patients/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["patients", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Patient Appointments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/patients/{{patient_id}}/appointments",
+									"host": ["{{base_url}}"],
+									"path": ["patients", "{{patient_id}}", "appointments"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Patient",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/patients/{{patient_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["patients", "{{patient_id}}"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Professionals",
+					"item": [
+						{
+							"name": "Create Professional",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('professional_id', response.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Dr. Roberto Silva\",\n    \"email\": \"roberto.silva@example.com\",\n    \"phone\": \"+54 11 4567-8901\",\n    \"specialty\": \"Medicina General\",\n    \"licenseNumber\": \"MG-12345\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/professionals",
+									"host": ["{{base_url}}"],
+									"path": ["professionals"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Professional by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/professionals/{{professional_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["professionals", "{{professional_id}}"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Professional Schedule",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/professionals/{{professional_id}}/schedule?startDate=2025-01-01&endDate=2025-12-31",
+									"host": ["{{base_url}}"],
+									"path": ["professionals", "{{professional_id}}", "schedule"],
+									"query": [
+										{
+											"key": "startDate",
+											"value": "2025-01-01"
+										},
+										{
+											"key": "endDate",
+											"value": "2025-12-31"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Professional Schedule",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"slots\": [\n        {\n            \"date\": \"2025-02-15\",\n            \"startTime\": \"09:00\",\n            \"endTime\": \"09:30\",\n            \"isAvailable\": true\n        },\n        {\n            \"date\": \"2025-02-15\",\n            \"startTime\": \"09:30\",\n            \"endTime\": \"10:00\",\n            \"isAvailable\": true\n        }\n    ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/professionals/{{professional_id}}/schedule",
+									"host": ["{{base_url}}"],
+									"path": ["professionals", "{{professional_id}}", "schedule"]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Appointments",
+					"item": [
+						{
+							"name": "Update Appointment Status",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"status\": \"CONFIRMED\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/appointments/{{appointment_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["appointments", "{{appointment_id}}"]
+								},
+								"description": "Actualiza el estado del turno. Valores: CONFIRMED, CANCELLED, COMPLETED"
+							},
+							"response": []
+						},
+						{
+							"name": "Cancel Appointment",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/appointments/{{appointment_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["appointments", "{{appointment_id}}"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	]
+}
