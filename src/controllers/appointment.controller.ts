@@ -74,11 +74,8 @@ export class AppointmentController {
         });
       }
 
-      // Normalizar la fecha para evitar problemas de timezone
-      // Si viene como string "YYYY-MM-DD", crear la fecha en timezone local
       let normalizedDate: Date;
       if (typeof appointmentDate === 'string') {
-        // Parsear fecha en formato YYYY-MM-DD y crear en timezone local
         const [year, month, day] = appointmentDate.split('-').map(Number);
         normalizedDate = new Date(year, month - 1, day);
         normalizedDate.setHours(0, 0, 0, 0);

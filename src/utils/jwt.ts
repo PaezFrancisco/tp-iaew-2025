@@ -119,23 +119,16 @@ export async function validateJWT(token: string): Promise<any> {
   }
 }
 
-// Función auxiliar para normalizar el issuer (acepta localhost o keycloak como hostname)
 function normalizeIssuer(issuer: string): string {
-  // Normalizar el issuer para aceptar tanto localhost como keycloak
-  // Esto es necesario porque los tokens obtenidos desde fuera del contenedor
-  // usan localhost:8080, pero la app dentro del contenedor usa keycloak:8080
   return issuer
     .replace(/http:\/\/localhost:(\d+)/, 'http://keycloak:$1')
     .replace(/http:\/\/127\.0\.0\.1:(\d+)/, 'http://keycloak:$1')
     .replace(/http:\/\/keycloak:(\d+)/, 'http://keycloak:$1');
 }
 
-// Función auxiliar para verificar el token con la clave PEM
 function verifyTokenWithPem(token: string, pem: string): any {
-  // Obtener el issuer esperado
   const expectedIssuer = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`;
   
-  // Decodificar primero para ver el payload y verificar el audience
   const decodedPayload = jwt.decode(token);
   if (!decodedPayload || typeof decodedPayload === 'string') {
     throw new Error('Token payload inválido');
@@ -145,11 +138,9 @@ function verifyTokenWithPem(token: string, pem: string): any {
   const expectedAudience = KEYCLOAK_CLIENT_ID;
   const tokenIssuer = (decodedPayload as any).iss;
   
-  // Normalizar ambos issuers para comparación
   const normalizedTokenIssuer = normalizeIssuer(tokenIssuer);
   const normalizedExpectedIssuer = normalizeIssuer(expectedIssuer);
   
-  // Log para debug
   logger.debug('Validando token', {
     tokenIssuer,
     normalizedTokenIssuer,
@@ -160,7 +151,6 @@ function verifyTokenWithPem(token: string, pem: string): any {
     clientId: (decodedPayload as any).azp || 'N/A',
   });
   
-  // Verificar que el issuer normalizado coincida
   if (normalizedTokenIssuer !== normalizedExpectedIssuer) {
     logger.warn('Issuer no coincide después de normalización', { 
       tokenIssuer, 
@@ -171,17 +161,11 @@ function verifyTokenWithPem(token: string, pem: string): any {
     throw new Error(`Token issuer inválido: esperado ${expectedIssuer}, recibido ${tokenIssuer}`);
   }
   
-  // Verificar el token - NO validar issuer ni audience estricto en jwt.verify
-  // porque ya validamos el issuer manualmente después de normalizar
-  // Keycloak puede emitir tokens con diferentes audiences dependiendo del flujo
   try {
     const payload = jwt.verify(token, pem, {
       algorithms: ['RS256'],
-      // No validar issuer aquí - ya lo validamos manualmente después de normalizar
-      // No validar audience estricto - Keycloak puede emitir tokens con diferentes audiences
     });
     
-    // Verificar manualmente que el issuer del payload normalizado coincida
     const payloadIssuer = (payload as any).iss;
     if (payloadIssuer) {
       const normalizedPayloadIssuer = normalizeIssuer(payloadIssuer);
@@ -194,7 +178,6 @@ function verifyTokenWithPem(token: string, pem: string): any {
       throw new Error('Token payload inválido después de verificación');
     }
 
-    // Verificar que el token tenga información válida
     const payloadObj = payload as any;
     if (!payloadObj.sub) {
       throw new Error('Token no contiene subject (sub)');
@@ -208,12 +191,10 @@ function verifyTokenWithPem(token: string, pem: string): any {
     });
     return payload;
   } catch (verifyError: any) {
-    // Si es un error de expiración o formato, lanzarlo directamente
     if (verifyError.name === 'TokenExpiredError' || verifyError.name === 'JsonWebTokenError') {
       throw verifyError;
     }
     
-    // Para otros errores, agregar más contexto
     logger.error('Error verificando token', {
       error: verifyError.message,
       name: verifyError.name,
@@ -224,7 +205,6 @@ function verifyTokenWithPem(token: string, pem: string): any {
   }
 }
 
-// Extraer token del header Authorization
 export function extractTokenFromHeader(authHeader: string | undefined): string | null {
   if (!authHeader) {
     return null;

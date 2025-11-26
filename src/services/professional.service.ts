@@ -14,12 +14,20 @@ export class ProfessionalService {
   }
 
   async getAll(filters: ProfessionalFilters = {}) {
-    logger.info('Obteniendo lista de profesionales', { filters });
+    logger.info('Obteniendo lista de profesionales', {
+      resource: 'professional',
+      operation: 'list',
+      filters,
+    });
     return this.repository.findAll(filters);
   }
 
   async getById(id: string) {
-    logger.info('Obteniendo profesional por ID', { id });
+    logger.info('Obteniendo profesional por ID', {
+      resource: 'professional',
+      operation: 'getById',
+      professionalId: id,
+    });
     const professional = await this.repository.findById(id);
     
     if (!professional) {
@@ -30,7 +38,11 @@ export class ProfessionalService {
   }
 
   async create(data: Prisma.ProfessionalCreateInput) {
-    logger.info('Creando nuevo profesional', { email: data.email });
+    logger.info('Creando nuevo profesional', {
+      resource: 'professional',
+      operation: 'create',
+      email: data.email,
+    });
     
     // Verificar si el email ya existe
     const existing = await this.repository.findByEmail(data.email as string);
@@ -51,12 +63,20 @@ export class ProfessionalService {
     }
 
     const professional = await this.repository.create(data);
-    logger.info('Profesional creado exitosamente', { id: professional.id });
+    logger.info('Profesional creado exitosamente', {
+      resource: 'professional',
+      operation: 'create',
+      professionalId: professional.id,
+    });
     return professional;
   }
 
   async update(id: string, data: Prisma.ProfessionalUpdateInput) {
-    logger.info('Actualizando profesional', { id });
+    logger.info('Actualizando profesional', {
+      resource: 'professional',
+      operation: 'update',
+      professionalId: id,
+    });
     
     const existing = await this.repository.findById(id);
     if (!existing) {
@@ -72,12 +92,20 @@ export class ProfessionalService {
     }
 
     const professional = await this.repository.update(id, data);
-    logger.info('Profesional actualizado exitosamente', { id });
+    logger.info('Profesional actualizado exitosamente', {
+      resource: 'professional',
+      operation: 'update',
+      professionalId: id,
+    });
     return professional;
   }
 
   async delete(id: string) {
-    logger.info('Eliminando profesional', { id });
+    logger.info('Eliminando profesional', {
+      resource: 'professional',
+      operation: 'delete',
+      professionalId: id,
+    });
     
     const existing = await this.repository.findById(id);
     if (!existing) {
@@ -85,7 +113,11 @@ export class ProfessionalService {
     }
 
     await this.repository.delete(id);
-    logger.info('Profesional eliminado exitosamente', { id });
+    logger.info('Profesional eliminado exitosamente', {
+      resource: 'professional',
+      operation: 'delete',
+      professionalId: id,
+    });
   }
 }
 

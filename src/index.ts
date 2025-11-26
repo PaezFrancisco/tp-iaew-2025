@@ -9,7 +9,8 @@ import routes from './routes';
 import { connectRabbitMQ } from './config/rabbitmq';
 import logger from './config/logger';
 
-// Cargar variables de entorno
+const apiLogger = logger.child({ component: 'api' });
+
 dotenv.config();
 
 const app = express();
@@ -21,13 +22,41 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Middleware de logging de requests
-app.use((req, res, next) => {
-  logger.info('HTTP Request', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const start = Date.now();
+
+  const segments = req.path.split('/').filter(Boolean);
+  const resource = segments[1] || 'unknown'; // ej: /api/appointments -> 'appointments'
+
+  const merged = { ...req.params, ...req.query, ...req.body } as any;
+  const patientId = merged.patientId;
+  const professionalId = merged.professionalId;
+  const appointmentId = merged.appointmentId;
+  const domainStatus = merged.status;
+
+  const userId = (req as any).user?.sub;
+  const userEmail = (req as any).user?.email;
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+
+    apiLogger.info('HTTP Request Completed', {
+      origin: 'api',
+      resource,
+      method: req.method,
+      path: req.originalUrl || req.path,
+      statusCode: res.statusCode,
+      durationMs,
+      ip: req.ip,
+      patientId,
+      professionalId,
+      appointmentId,
+      status: domainStatus,
+      userId,
+      userEmail,
+    });
   });
+
   next();
 });
 
@@ -40,7 +69,7 @@ app.use('/api', routes);
 // ERROR HANDLING
 // ============================================
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Error no manejado', {
+  apiLogger.error('Error no manejado', {
     error: err.message,
     stack: err.stack,
     path: req.path,
@@ -65,7 +94,7 @@ async function startServer() {
     for (let i = 0; i < maxRetries; i++) {
       try {
         await connectRabbitMQ();
-        logger.info('Conectado a RabbitMQ');
+        apiLogger.info('Conectado a RabbitMQ');
         rabbitmqConnected = true;
         break;
       } catch (error: any) {
@@ -79,12 +108,12 @@ async function startServer() {
     }
     
     if (!rabbitmqConnected) {
-      logger.warn('No se pudo conectar a RabbitMQ después de varios intentos, continuando sin él');
+      apiLogger.warn('No se pudo conectar a RabbitMQ después de varios intentos, continuando sin él');
     }
 
     // Iniciar servidor
     const server = app.listen(PORT, () => {
-      logger.info('Servidor API iniciado', {
+      apiLogger.info('Servidor API iniciado', {
         port: PORT,
         environment: process.env.NODE_ENV || 'development',
       });
@@ -95,59 +124,54 @@ async function startServer() {
 
     // Manejar errores del servidor sin detenerlo
     server.on('error', (error: any) => {
-      logger.error('Error en el servidor HTTP', { 
+      apiLogger.error('Error en el servidor HTTP', { 
         error: error.message,
         code: error.code,
         port: PORT 
       });
-      // No hacer process.exit, solo loguear el error
     });
 
     // Manejar cierre graceful
     process.on('SIGTERM', () => {
-      logger.info('Recibida señal SIGTERM, cerrando servidor gracefully...');
+      apiLogger.info('Recibida señal SIGTERM, cerrando servidor gracefully...');
       server.close(() => {
-        logger.info('Servidor cerrado');
+        apiLogger.info('Servidor cerrado');
         process.exit(0);
       });
     });
 
     process.on('SIGINT', () => {
-      logger.info('Recibida señal SIGINT, cerrando servidor gracefully...');
+      apiLogger.info('Recibida señal SIGINT, cerrando servidor gracefully...');
       server.close(() => {
-        logger.info('Servidor cerrado');
+        apiLogger.info('Servidor cerrado');
         process.exit(0);
       });
     });
 
     // Manejar errores no capturados sin detener el servidor
     process.on('uncaughtException', (error: Error) => {
-      logger.error('Error no capturado', { 
+      apiLogger.error('Error no capturado', { 
         error: error.message,
         stack: error.stack 
       });
-      // No hacer process.exit, solo loguear
     });
 
     process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-      logger.error('Promise rechazada no manejada', { 
+      apiLogger.error('Promise rechazada no manejada', { 
         reason: reason?.message || reason,
         stack: reason?.stack 
       });
-      // No hacer process.exit, solo loguear
     });
 
   } catch (error: any) {
-    logger.error('Error crítico iniciando servidor', { 
+    apiLogger.error('Error crítico iniciando servidor', { 
       error: error.message,
       stack: error.stack 
     });
-    // Solo hacer exit si es un error realmente crítico
-    // En desarrollo, intentar continuar
     if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     } else {
-      logger.warn('Modo desarrollo: continuando a pesar del error');
+      apiLogger.warn('Modo desarrollo: continuando a pesar del error');
     }
   }
 }

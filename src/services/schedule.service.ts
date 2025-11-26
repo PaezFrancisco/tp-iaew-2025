@@ -23,7 +23,12 @@ export class ScheduleService {
   }
 
   async getSchedule(professionalId: string, filters: Omit<ScheduleFilters, 'professionalId'> = {}) {
-    logger.info('Obteniendo horarios de profesional', { professionalId, filters });
+    logger.info('Obteniendo horarios de profesional', {
+      resource: 'schedule',
+      operation: 'getSchedule',
+      professionalId,
+      filters,
+    });
     
     const professional = await this.professionalRepo.findById(professionalId);
     if (!professional) {
@@ -42,7 +47,12 @@ export class ScheduleService {
   }
 
   async updateSchedule(professionalId: string, slots: CreateScheduleSlotData[]) {
-    logger.info('Actualizando horarios de profesional', { professionalId, slotsCount: slots.length });
+    logger.info('Actualizando horarios de profesional', {
+      resource: 'schedule',
+      operation: 'updateSchedule',
+      professionalId,
+      slotsCount: slots.length,
+    });
     
     const professional = await this.professionalRepo.findById(professionalId);
     if (!professional) {

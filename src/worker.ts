@@ -10,20 +10,24 @@ import { connectRabbitMQ, QUEUES, EXCHANGES, publishMessage } from './config/rab
 import { prepareWebhookPayload } from './utils/webhook';
 import logger from './config/logger';
 
+const workerLogger = logger.child({ component: 'worker' });
+
 dotenv.config();
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://httpbin.org/post';
 const MAX_RETRIES = 3;
 
-// Procesar mensaje de appointment creado
 async function processAppointmentCreated(message: ConsumeMessage | null) {
   if (!message) return;
 
   try {
     const data = JSON.parse(message.content.toString());
-    logger.info('Procesando appointment.created', { appointmentId: data.appointmentId });
+    workerLogger.info('Procesando appointment.created', {
+      resource: 'appointment',
+      operation: 'worker.processCreated',
+      appointmentId: data.appointmentId,
+    });
 
-    // Obtener detalles del appointment
     const appointment = await prisma.appointment.findUnique({
       where: { id: data.appointmentId },
       include: {
@@ -33,12 +37,15 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     });
 
     if (!appointment) {
-      logger.error('Appointment no encontrado', { appointmentId: data.appointmentId });
-      message.channel.nack(message, false, false); // Rechazar y no reintentar
+      workerLogger.error('Appointment no encontrado', {
+        resource: 'appointment',
+        operation: 'worker.processCreated',
+        appointmentId: data.appointmentId,
+      });
+      message.channel.nack(message, false, false);
       return;
     }
 
-    // Preparar payload del webhook
     const webhookData = prepareWebhookPayload('appointment.created', {
       appointmentId: appointment.id,
       professional: {
@@ -58,7 +65,6 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
       reason: appointment.reason,
     });
 
-    // Enviar webhook
     let webhookSuccess = false;
     let webhookResponse: string | null = null;
     let attempts = appointment.webhookAttempts || 0;
@@ -66,7 +72,7 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     try {
       const response = await axios.post(WEBHOOK_URL, webhookData.payload, {
         headers: webhookData.headers,
-        timeout: 10000, // 10 segundos
+        timeout: 10000,
       });
 
       webhookSuccess = response.status >= 200 && response.status < 300;
@@ -76,9 +82,14 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
         data: response.data,
       });
 
-      logger.info('Webhook enviado exitosamente', {
+      workerLogger.info('Webhook enviado exitosamente', {
+        resource: 'appointment',
+        operation: 'worker.webhookSuccess',
         appointmentId: appointment.id,
-        status: response.status,
+        professionalId: appointment.professionalId,
+        patientId: appointment.patientId,
+        httpStatus: response.status,
+        status: appointment.status,
       });
     } catch (error: any) {
       attempts++;
@@ -87,40 +98,47 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
         code: error.code,
       });
 
-      logger.warn('Error enviando webhook', {
+      workerLogger.warn('Error enviando webhook', {
+        resource: 'appointment',
+        operation: 'worker.webhookError',
         appointmentId: appointment.id,
+        professionalId: appointment.professionalId,
+        patientId: appointment.patientId,
         attempt: attempts,
         error: error.message,
       });
 
-      // Si no se ha alcanzado el máximo de reintentos, enviar a cola de reintentos
       if (attempts < MAX_RETRIES) {
-        await publishMessage(
-          EXCHANGES.APPOINTMENTS,
-          'appointment.retry',
-          {
-            appointmentId: appointment.id,
-            attempt: attempts,
-            timestamp: new Date().toISOString(),
-          }
-        );
-        logger.info('Mensaje enviado a cola de reintentos', {
+        await publishMessage(EXCHANGES.APPOINTMENTS, 'appointment.retry', {
           appointmentId: appointment.id,
+          professionalId: appointment.professionalId,
+          patientId: appointment.patientId,
+          attempt: attempts,
+          timestamp: new Date().toISOString(),
+        });
+        workerLogger.info('Mensaje enviado a cola de reintentos', {
+          resource: 'appointment',
+          operation: 'worker.retryScheduled',
+          appointmentId: appointment.id,
+          professionalId: appointment.professionalId,
+          patientId: appointment.patientId,
           attempt: attempts,
         });
       } else {
         // Enviar a Dead Letter Queue
-        await publishMessage(
-          EXCHANGES.APPOINTMENTS,
-          'appointment.dlq',
-          {
-            appointmentId: appointment.id,
-            attempts: attempts,
-            timestamp: new Date().toISOString(),
-          }
-        );
-        logger.error('Mensaje enviado a DLQ después de máximo de reintentos', {
+        await publishMessage(EXCHANGES.APPOINTMENTS, 'appointment.dlq', {
           appointmentId: appointment.id,
+          professionalId: appointment.professionalId,
+          patientId: appointment.patientId,
+          attempts: attempts,
+          timestamp: new Date().toISOString(),
+        });
+        workerLogger.error('Mensaje enviado a DLQ después de máximo de reintentos', {
+          resource: 'appointment',
+          operation: 'worker.sentToDLQ',
+          appointmentId: appointment.id,
+          professionalId: appointment.professionalId,
+          patientId: appointment.patientId,
           attempts,
         });
       }
@@ -139,10 +157,23 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
       },
     });
 
+    workerLogger.info('Estado de appointment actualizado tras webhook', {
+      resource: 'appointment',
+      operation: 'worker.updateStatusAfterWebhook',
+      appointmentId: appointment.id,
+      professionalId: appointment.professionalId,
+      patientId: appointment.patientId,
+      status: webhookSuccess ? 'CONFIRMED' : appointment.status,
+      webhookSent: webhookSuccess,
+      attempts,
+    });
+
     // Confirmar mensaje procesado
     message.channel.ack(message);
   } catch (error: any) {
-    logger.error('Error procesando mensaje appointment.created', {
+    workerLogger.error('Error procesando mensaje appointment.created', {
+      resource: 'appointment',
+      operation: 'worker.processCreated',
       error: error.message,
       stack: error.stack,
     });
@@ -157,12 +188,16 @@ async function processAppointmentRetry(message: ConsumeMessage | null) {
 
   try {
     const data = JSON.parse(message.content.toString());
-    logger.info('Procesando reintento de appointment', { appointmentId: data.appointmentId });
+    workerLogger.info('Procesando reintento de appointment', {
+      resource: 'appointment',
+      operation: 'worker.processRetry',
+      appointmentId: data.appointmentId,
+    });
 
     // Reintentar procesamiento
     await processAppointmentCreated(message);
   } catch (error: any) {
-    logger.error('Error procesando reintento', { error: error.message });
+    workerLogger.error('Error procesando reintento', { error: error.message });
     message.channel.nack(message, false, true);
   }
 }
@@ -170,7 +205,7 @@ async function processAppointmentRetry(message: ConsumeMessage | null) {
 // Inicializar worker
 async function startWorker() {
   try {
-    logger.info('Iniciando Worker de Webhooks...');
+    workerLogger.info('Iniciando Worker de Webhooks...');
 
     // Conectar a RabbitMQ
     const channel = await connectRabbitMQ();
@@ -181,7 +216,7 @@ async function startWorker() {
       processAppointmentCreated,
       { noAck: false }
     );
-    logger.info('Consumiendo cola: appointment.created');
+    workerLogger.info('Consumiendo cola: appointment.created');
 
     // Consumir cola de reintentos
     await channel.consume(
@@ -189,27 +224,27 @@ async function startWorker() {
       processAppointmentRetry,
       { noAck: false }
     );
-    logger.info('Consumiendo cola: appointment.retry');
+    workerLogger.info('Consumiendo cola: appointment.retry');
 
-    logger.info('Worker iniciado correctamente', {
+    workerLogger.info('Worker iniciado correctamente', {
       webhookUrl: WEBHOOK_URL,
       maxRetries: MAX_RETRIES,
     });
 
     // Manejar cierre graceful
     process.on('SIGTERM', async () => {
-      logger.info('Cerrando worker...');
+      workerLogger.info('Cerrando worker...');
       await channel.close();
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
-      logger.info('Cerrando worker...');
+      workerLogger.info('Cerrando worker...');
       await channel.close();
       process.exit(0);
     });
   } catch (error: any) {
-    logger.error('Error iniciando worker', { error: error.message });
+    workerLogger.error('Error iniciando worker', { error: error.message });
     process.exit(1);
   }
 }

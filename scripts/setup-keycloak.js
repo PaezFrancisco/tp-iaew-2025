@@ -116,6 +116,43 @@ async function createRealm(token) {
   }
 }
 
+// Actualizar configuración de duración de tokens del realm
+async function updateTokenLifespans(token) {
+  try {
+    const realmUrl = `${KEYCLOAK_URL}/admin/realms/${KEYCLOAK_REALM}`;
+
+    // Obtener configuración actual del realm
+    const realmResponse = await axios.get(realmUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const realmConfig = realmResponse.data;
+
+    // Valores de ejemplo: access token 1 hora, sesión 8 horas
+    const accessTokenLifespanSeconds = parseInt(
+      process.env.KEYCLOAK_ACCESS_TOKEN_LIFESPAN || '3600',
+      10
+    ); // 1 hora
+    const ssoSessionIdleTimeoutSeconds = parseInt(
+      process.env.KEYCLOAK_SSO_SESSION_IDLE_TIMEOUT || '28800',
+      10
+    ); // 8 horas
+
+    realmConfig.accessTokenLifespan = accessTokenLifespanSeconds;
+    realmConfig.ssoSessionIdleTimeout = ssoSessionIdleTimeoutSeconds;
+
+    await axios.put(realmUrl, realmConfig, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+
+    console.log(
+      `✅ Duración de tokens actualizada (accessTokenLifespan=${accessTokenLifespanSeconds}s, ssoSessionIdleTimeout=${ssoSessionIdleTimeoutSeconds}s)`
+    );
+  } catch (error) {
+    console.warn('⚠️  No se pudo actualizar la duración de los tokens:', error.message);
+  }
+}
+
 async function createClient(token) {
   console.log(`🔧 Creando/verificando Client: ${KEYCLOAK_CLIENT_ID}...`);
   let clientId = null;
@@ -382,26 +419,26 @@ async function main() {
     // Esperar a que Keycloak esté completamente listo
     await waitForKeycloak();
     
-    // Verificar si ya está configurado
     const isConfigured = await verifyRealmConfigured();
-    
-    if (isConfigured) {
-      console.log('✅ Keycloak ya está configurado correctamente');
-      console.log('   No se realizarán cambios para evitar invalidar tokens existentes');
-      return;
-    }
-    
-    console.log('🔧 Configurando Keycloak...\n');
     const token = await getAdminToken();
-    await createRealm(token);
-    await createClient(token);
-    
-    console.log('👥 Creando roles...');
-    await createRole(token, 'admin');
-    await createRole(token, 'professional');
-    await createRole(token, 'patient');
-    
-    await createAdminUser(token);
+
+    if (!isConfigured) {
+      console.log('🔧 Configurando Keycloak...\n');
+      await createRealm(token);
+      await createClient(token);
+      
+      console.log('👥 Creando roles...');
+      await createRole(token, 'admin');
+      await createRole(token, 'professional');
+      await createRole(token, 'patient');
+      
+      await createAdminUser(token);
+    } else {
+      console.log('✅ Keycloak ya está configurado, aplicando actualización de tokens...');
+    }
+
+    // Siempre asegurarnos de que la duración de los tokens esté actualizada
+    await updateTokenLifespans(token);
     
     // Verificar que todo esté configurado correctamente
     console.log('\n🔍 Verificando configuración final...');

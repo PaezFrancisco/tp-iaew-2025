@@ -34,12 +34,20 @@ export class AppointmentService {
   }
 
   async getAll(filters: AppointmentFilters = {}) {
-    logger.info('Obteniendo lista de turnos', { filters });
+    logger.info('Obteniendo lista de turnos', {
+      resource: 'appointment',
+      operation: 'list',
+      filters,
+    });
     return this.appointmentRepo.findAll(filters);
   }
 
   async getById(id: string) {
-    logger.info('Obteniendo turno por ID', { id });
+    logger.info('Obteniendo turno por ID', {
+      resource: 'appointment',
+      operation: 'getById',
+      appointmentId: id,
+    });
     const appointment = await this.appointmentRepo.findById(id);
     
     if (!appointment) {
@@ -53,7 +61,15 @@ export class AppointmentService {
   // TRANSACCIÓN MULTI-PASO: RESERVA DE TURNO
   // ============================================
   async createAppointment(data: CreateAppointmentData) {
-    logger.info('Iniciando reserva de turno', { data });
+    logger.info('Iniciando reserva de turno', {
+      resource: 'appointment',
+      operation: 'create',
+      professionalId: data.professionalId,
+      patientId: data.patientId,
+      appointmentDate: data.appointmentDate,
+      startTime: data.startTime,
+      endTime: data.endTime,
+    });
 
     // PASO 1: Verificar que el paciente y profesional existan
     const [patient, professional] = await Promise.all([
@@ -140,7 +156,13 @@ export class AppointmentService {
         },
       });
 
-      logger.info('Turno creado en transacción', { appointmentId: newAppointment.id });
+      logger.info('Turno creado en transacción', {
+        resource: 'appointment',
+        operation: 'create',
+        appointmentId: newAppointment.id,
+        professionalId: newAppointment.professionalId,
+        patientId: newAppointment.patientId,
+      });
       return newAppointment;
     });
 
@@ -160,7 +182,14 @@ export class AppointmentService {
           timestamp: new Date().toISOString(),
         }
       );
-      logger.info('Evento appointment.created publicado a RabbitMQ', { appointmentId: appointment.id });
+      logger.info('Evento appointment.created publicado a RabbitMQ', {
+        resource: 'appointment',
+        operation: 'publishEvent',
+        eventType: 'appointment.created',
+        appointmentId: appointment.id,
+        professionalId: appointment.professionalId,
+        patientId: appointment.patientId,
+      });
     } catch (error: any) {
       logger.error('Error publicando evento a RabbitMQ', { error: error.message, appointmentId: appointment.id });
       // No fallar la transacción si falla el evento, pero loguear el error
@@ -170,7 +199,12 @@ export class AppointmentService {
   }
 
   async updateStatus(id: string, status: AppointmentStatus) {
-    logger.info('Actualizando estado de turno', { id, status });
+    logger.info('Actualizando estado de turno', {
+      resource: 'appointment',
+      operation: 'updateStatus',
+      appointmentId: id,
+      status,
+    });
     
     const appointment = await this.appointmentRepo.findById(id);
     if (!appointment) {
@@ -195,7 +229,12 @@ export class AppointmentService {
             timestamp: new Date().toISOString(),
           }
         );
-        logger.info('Evento appointment.confirmed publicado', { appointmentId: updated.id });
+        logger.info('Evento appointment.confirmed publicado', {
+          resource: 'appointment',
+          operation: 'publishEvent',
+          eventType: 'appointment.confirmed',
+          appointmentId: updated.id,
+        });
       } catch (error: any) {
         logger.error('Error publicando evento de confirmación', { error: error.message });
       }
@@ -205,7 +244,11 @@ export class AppointmentService {
   }
 
   async cancel(id: string) {
-    logger.info('Cancelando turno', { id });
+    logger.info('Cancelando turno', {
+      resource: 'appointment',
+      operation: 'cancel',
+      appointmentId: id,
+    });
     
     const appointment = await this.getById(id);
     
@@ -229,7 +272,12 @@ export class AppointmentService {
   }
 
   async getAvailability(professionalId: string, date: Date) {
-    logger.info('Consultando disponibilidad', { professionalId, date });
+    logger.info('Consultando disponibilidad', {
+      resource: 'appointment',
+      operation: 'getAvailability',
+      professionalId,
+      date,
+    });
     
     const professional = await this.professionalRepo.findById(professionalId);
     if (!professional) {

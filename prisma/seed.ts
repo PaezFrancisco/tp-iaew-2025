@@ -1,6 +1,5 @@
 // ============================================
 // SEED DATA - Datos iniciales para desarrollo
-// Ejecutar con: npx prisma db seed
 // ============================================
 
 import { PrismaClient, AppointmentStatus } from '@prisma/client';

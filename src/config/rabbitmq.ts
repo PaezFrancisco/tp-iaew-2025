@@ -5,12 +5,13 @@
 import amqp, { Connection, Channel } from 'amqplib';
 import logger from './logger';
 
+const rabbitLogger = logger.child({ component: 'rabbitmq' });
+
 const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://health_app_user:health_app_password@localhost:5672';
 
 let connection: Connection | null = null;
 let channel: Channel | null = null;
 
-// Nombres de colas y exchanges
 export const QUEUES = {
   APPOINTMENT_CREATED: 'appointment.created',
   APPOINTMENT_CONFIRMED: 'appointment.confirmed',
@@ -22,7 +23,6 @@ export const EXCHANGES = {
   APPOINTMENTS: 'appointments',
 };
 
-// Conectar a RabbitMQ
 export async function connectRabbitMQ(): Promise<Channel> {
   try {
     if (channel) {
@@ -32,12 +32,10 @@ export async function connectRabbitMQ(): Promise<Channel> {
     connection = await amqp.connect(RABBITMQ_URL);
     channel = await connection.createChannel();
 
-    // Declarar exchange
     await channel.assertExchange(EXCHANGES.APPOINTMENTS, 'topic', {
       durable: true,
     });
 
-    // Declarar colas
     await channel.assertQueue(QUEUES.APPOINTMENT_CREATED, {
       durable: true,
     });
@@ -46,7 +44,6 @@ export async function connectRabbitMQ(): Promise<Channel> {
       durable: true,
     });
 
-    // Cola de reintentos con TTL
     await channel.assertQueue(QUEUES.APPOINTMENT_RETRY, {
       durable: true,
       arguments: {
@@ -56,31 +53,28 @@ export async function connectRabbitMQ(): Promise<Channel> {
       },
     });
 
-    // Dead Letter Queue
     await channel.assertQueue(QUEUES.APPOINTMENT_DLQ, {
       durable: true,
     });
 
-    // Bindings
     await channel.bindQueue(QUEUES.APPOINTMENT_CREATED, EXCHANGES.APPOINTMENTS, 'appointment.created');
     await channel.bindQueue(QUEUES.APPOINTMENT_CONFIRMED, EXCHANGES.APPOINTMENTS, 'appointment.confirmed');
 
-    logger.info('Conectado a RabbitMQ', { url: RABBITMQ_URL.replace(/:[^:@]+@/, ':****@') });
+    rabbitLogger.info('Conectado a RabbitMQ', { url: RABBITMQ_URL.replace(/:[^:@]+@/, ':****@') });
 
-    // Manejar desconexión
     connection.on('close', () => {
-      logger.warn('Conexión a RabbitMQ cerrada');
+      rabbitLogger.warn('Conexión a RabbitMQ cerrada');
       connection = null;
       channel = null;
     });
 
     connection.on('error', (err) => {
-      logger.error('Error en conexión RabbitMQ', { error: err.message });
+      rabbitLogger.error('Error en conexión RabbitMQ', { error: err.message });
     });
 
     return channel;
   } catch (error: any) {
-    logger.error('Error conectando a RabbitMQ', { error: error.message });
+    rabbitLogger.error('Error conectando a RabbitMQ', { error: error.message });
     throw error;
   }
 }
@@ -95,11 +89,17 @@ export async function publishMessage(
     const ch = await connectRabbitMQ();
     const messageBuffer = Buffer.from(JSON.stringify(message));
     
-    return ch.publish(exchange, routingKey, messageBuffer, {
+    const published = ch.publish(exchange, routingKey, messageBuffer, {
       persistent: true,
     });
+    rabbitLogger.info('Mensaje publicado en RabbitMQ', {
+      exchange,
+      routingKey,
+      message,
+    });
+    return published;
   } catch (error: any) {
-    logger.error('Error publicando mensaje a RabbitMQ', { error: error.message });
+    rabbitLogger.error('Error publicando mensaje a RabbitMQ', { error: error.message });
     throw error;
   }
 }
@@ -113,9 +113,9 @@ export async function closeRabbitMQ() {
     if (connection) {
       await connection.close();
     }
-    logger.info('Conexión a RabbitMQ cerrada correctamente');
+    rabbitLogger.info('Conexión a RabbitMQ cerrada correctamente');
   } catch (error: any) {
-    logger.error('Error cerrando conexión RabbitMQ', { error: error.message });
+    rabbitLogger.error('Error cerrando conexión RabbitMQ', { error: error.message });
   }
 }
 

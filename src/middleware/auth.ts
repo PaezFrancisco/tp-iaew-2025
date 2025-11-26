@@ -6,7 +6,6 @@ import { Request, Response, NextFunction } from 'express';
 import { validateJWT, extractTokenFromHeader } from '../utils/jwt';
 import logger from '../config/logger';
 
-// Extender Request para incluir user
 declare global {
   namespace Express {
     interface Request {
@@ -35,7 +34,6 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     const payload = await validateJWT(token);
 
-    // Agregar información del usuario al request
     req.user = {
       sub: payload.sub,
       email: payload.email,

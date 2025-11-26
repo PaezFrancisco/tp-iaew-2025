@@ -14,12 +14,20 @@ export class PatientService {
   }
 
   async getAll(filters: PatientFilters = {}) {
-    logger.info('Obteniendo lista de pacientes', { filters });
+    logger.info('Obteniendo lista de pacientes', {
+      resource: 'patient',
+      operation: 'list',
+      filters,
+    });
     return this.repository.findAll(filters);
   }
 
   async getById(id: string) {
-    logger.info('Obteniendo paciente por ID', { id });
+    logger.info('Obteniendo paciente por ID', {
+      resource: 'patient',
+      operation: 'getById',
+      patientId: id,
+    });
     const patient = await this.repository.findById(id);
     
     if (!patient) {
@@ -30,7 +38,11 @@ export class PatientService {
   }
 
   async create(data: Prisma.PatientCreateInput) {
-    logger.info('Creando nuevo paciente', { email: data.email });
+    logger.info('Creando nuevo paciente', {
+      resource: 'patient',
+      operation: 'create',
+      email: data.email,
+    });
     
     // Verificar si el email ya existe
     const existing = await this.repository.findByEmail(data.email as string);
@@ -39,12 +51,20 @@ export class PatientService {
     }
 
     const patient = await this.repository.create(data);
-    logger.info('Paciente creado exitosamente', { id: patient.id });
+    logger.info('Paciente creado exitosamente', {
+      resource: 'patient',
+      operation: 'create',
+      patientId: patient.id,
+    });
     return patient;
   }
 
   async update(id: string, data: Prisma.PatientUpdateInput) {
-    logger.info('Actualizando paciente', { id });
+    logger.info('Actualizando paciente', {
+      resource: 'patient',
+      operation: 'update',
+      patientId: id,
+    });
     
     const existing = await this.repository.findById(id);
     if (!existing) {
@@ -60,12 +80,20 @@ export class PatientService {
     }
 
     const patient = await this.repository.update(id, data);
-    logger.info('Paciente actualizado exitosamente', { id });
+    logger.info('Paciente actualizado exitosamente', {
+      resource: 'patient',
+      operation: 'update',
+      patientId: id,
+    });
     return patient;
   }
 
   async delete(id: string) {
-    logger.info('Eliminando paciente', { id });
+    logger.info('Eliminando paciente', {
+      resource: 'patient',
+      operation: 'delete',
+      patientId: id,
+    });
     
     const existing = await this.repository.findById(id);
     if (!existing) {
@@ -73,7 +101,11 @@ export class PatientService {
     }
 
     await this.repository.delete(id);
-    logger.info('Paciente eliminado exitosamente', { id });
+    logger.info('Paciente eliminado exitosamente', {
+      resource: 'patient',
+      operation: 'delete',
+      patientId: id,
+    });
   }
 }
 
