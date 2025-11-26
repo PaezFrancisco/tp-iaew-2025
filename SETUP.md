@@ -4,8 +4,10 @@ Esta guía te ayudará a configurar y levantar el sistema completo de reserva de
 
 ## 📋 Prerrequisitos
 
-- Docker y Docker Compose instalados
-- Node.js 18+ (solo para desarrollo local, no necesario si usas Docker)
+- **Docker** ≥ 24.x
+- **Docker Compose** ≥ 2.20
+- **RAM mínima**: 4 GB libres (para correr Postgres + RabbitMQ + Keycloak + Elasticsearch + Kibana + API + Worker)
+- **Node.js 18+** (solo si querés correr la API/worker fuera de Docker o ejecutar scripts a mano)
 
 ## 🔧 Configuración Inicial
 

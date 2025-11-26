@@ -20,6 +20,11 @@ El sistema contempla:
 - **Contenedores:** Docker + Docker Compose
 - **Observabilidad:** Logs estructurados con Kibana
 - **Pruebas:** colección de Postman
+
+## 📂 Arquitectura y documentación
+
+- Los diagramas C4 (Niveles 1, 2, 3 y despliegue) están incluidos en este `README.md`.
+- La documentación técnica y de setup detallado se encuentra en `SETUP.md`.
 ## Nivel 1: Contexto del Sistema
 
 Este diagrama muestra el sistema de reserva de turnos médicos en su contexto más amplio, identificando los usuarios principales y los sistemas externos con los que interactúa.
@@ -251,6 +256,99 @@ graph TB
     DockerCompose --> ElasticsearchContainer
     DockerCompose --> KibanaContainer
 ```
+
+## 🔧 Requisitos y Setup Rápido
+
+- Ver sección detallada en `SETUP.md`.
+- Resumen mínimo:
+  - Requisitos: Docker ≥ 24, Docker Compose ≥ 2.20, ~4GB RAM libre.
+  - Levantar todo el entorno:
+    ```bash
+    docker-compose up -d
+    ```
+  - Servicios principales:
+    - API: `http://localhost:3000/api`
+    - Keycloak: `http://localhost:8080`
+    - RabbitMQ UI: `http://localhost:15672`
+    - Kibana: `http://localhost:5601`
+
+## 🔐 Usuarios y credenciales de prueba
+
+Ver también `SETUP.md` (sección “Credenciales por Defecto”).
+
+- **Keycloak Admin Console**: `admin` / `admin` (realm `health_app`).
+- **Usuario API de ejemplo**: `admin` / `admin` dentro del realm `health_app`.
+- **PostgreSQL**: `health_app_user` / `health_app_password`.
+- **RabbitMQ**: `health_app_user` / `health_app_password`.
+
+## 🧪 Pruebas con Postman
+
+- Importar colección: `Health_Appointments_API.postman_collection.json`.
+- Flujo recomendado (ya preparado en la colección):
+  1. **01 - Setup → Get Access Token**: obtiene y guarda `{{access_token}}`.
+  2. **01 - Setup → Health Check**: verifica que la API responde.
+  3. **02 - Get Data from Seed**: obtiene pacientes y profesionales del seed y guarda IDs.
+  4. **03 - Create Appointment**: crea un turno usando esos IDs.
+  5. **04 - Verify Appointment**: consulta el turno por ID y lista todos.
+
+> Prueba de carga: no hay un escenario automático incluido (k6/JMeter), pero la colección Postman puede usarse como base para un test de carga externo (por ejemplo, ejecutándola con `newman` en loop).
+
+## 👀 Observabilidad con Kibana
+
+- URL de Kibana: `http://localhost:5601`.
+- Índice de logs: `health-appointments-logs*` (crear una Data View con ese patrón y `@timestamp` como campo de tiempo).
+- Campos útiles en Discover (añadir como columnas):
+  - `origin` (por ejemplo: `"api"`, `"worker"`, `"rabbitmq"`).
+  - `resource`, `operation` (para ver qué parte del dominio).
+  - `appointmentId`, `patientId`, `professionalId`, `status`.
+  - `statusCode`, `durationMs` (para requests HTTP).
+- Ejemplos de filtros:
+  - Errores HTTP:
+    ```kql
+    origin: "api" and statusCode >= 400
+    ```
+  - Flujo completo de un turno:
+    ```kql
+    appointmentId: "<ID_DEL_TURNO>"
+    ```
+  - Actividad del worker:
+    ```kql
+    origin: "worker"
+    ```
+
+## 🔄 Flujo asincrónico: cómo dispararlo y observarlo
+
+1. Levantar el entorno con `docker-compose up -d`.
+2. En Postman ejecutar:
+   - `01 - Setup → Get Access Token`.
+   - `02 - Get Data from Seed` (patients + professionals + availability).
+   - `03 - Create Appointment`.
+3. El servicio API publicará `appointment.created` en RabbitMQ.
+4. El `worker` consumirá el mensaje, llamará al webhook y actualizará el estado del turno.
+5. Para observar:
+   - Ver el turno en `GET /appointments/{id}` (colección Postman “04 - Verify Appointment”).
+   - Ver los logs del worker y de la API en Kibana filtrando por `appointmentId` o `origin: "worker"`.
+
+## 🌐 Integración vía Webhook (sistema externo)
+
+- El sistema externo se simula mediante la variable `WEBHOOK_URL`:
+  - Por defecto: `WEBHOOK_URL=http://httpbin.org/post` (en `env.example` y `docker-compose.yml`).
+  - Podés cambiar `WEBHOOK_URL` a cualquier endpoint HTTP que tengas localmente (otro servicio, mock, ngrok, etc.).
+- Cada vez que se crea un turno (`appointment.created`), el worker enviará un `POST` al `WEBHOOK_URL` con un payload JSON.
+- Para debug:
+  - Con `httpbin`, podés ver el cuerpo recibido en la respuesta de `httpbin.org`.
+  - En Kibana, filtrá por `origin: "worker"` para ver los logs de envío/reintento de webhooks.
+
+## ⚠️ Limitaciones actuales y mejoras futuras
+
+- **Limitaciones:**
+  - Solo backend API, sin frontend (toda la interacción es vía HTTP/Postman).
+  - No hay pruebas de carga automatizadas incluidas (solo colección funcional).
+  - No se incluye métricas APM ni dashboards avanzados de p95/throughput/error-rate (solo logs estructurados).
+- **Posibles mejoras futuras:**
+  - Agregar un escenario de carga (k6/Newman) y reportes automatizados.
+  - Incorporar métricas (Prometheus/Grafana) y dashboards específicos de rendimiento.
+  - Añadir más validaciones de dominio y flujos adicionales (recordatorios por email/SMS, etc.).
 
 🧩 ADRs – Architectural Decision Records
 🧾 ADR 1: Estilo de comunicación – REST API
