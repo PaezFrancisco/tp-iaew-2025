@@ -1,6 +1,5 @@
 // ============================================
 // SEED DATA - Datos iniciales para desarrollo
-// Ejecutar con: npx prisma db seed
 // ============================================
 
 import { PrismaClient, AppointmentStatus } from '@prisma/client';
@@ -93,16 +92,16 @@ async function main() {
   console.log('📅 Creando horarios disponibles...');
   
   const today = new Date();
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  today.setHours(0, 0, 0, 0); // Normalizar a medianoche
   
-  // Horarios para el próximo mes
+  // Crear horarios desde mañana hasta 30 días adelante
   const slots = [];
   const professionals = [professional1.id, professional2.id, professional3.id];
   
   professionals.forEach(professionalId => {
-    // Crear slots de 9:00 a 17:00 para todos los días laborables
-    for (let day = 0; day < 20; day++) {
-      const date = new Date(nextMonth);
+    // Crear slots para los próximos 30 días
+    for (let day = 1; day <= 30; day++) {
+      const date = new Date(today);
       date.setDate(date.getDate() + day);
       
       // Saltar fines de semana
@@ -133,6 +132,18 @@ async function main() {
     data: slots,
   });
   console.log(`✅ ${slots.length} horarios creados\n`);
+  
+  // Calcular fecha de ejemplo para el appointment (mañana a las 10:00)
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Si mañana es fin de semana, usar el próximo lunes
+  while (tomorrow.getDay() === 0 || tomorrow.getDay() === 6) {
+    tomorrow.setDate(tomorrow.getDate() + 1);
+  }
+  
+  console.log('📝 Fecha de ejemplo para appointments:');
+  console.log(`   Fecha: ${tomorrow.toISOString().split('T')[0]}`);
+  console.log(`   Horario recomendado: 10:00 - 10:30\n`);
 
   // ============================================
   // CREAR TURNOS DE EJEMPLO

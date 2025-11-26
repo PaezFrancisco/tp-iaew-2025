@@ -9,7 +9,9 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    curl
+    curl \
+    openssl \
+    openssl-dev
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -18,16 +20,14 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
+COPY scripts ./scripts/
 
 # Instalar dependencias
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
-# Copiar código fuente
 COPY src ./src
 
-# Exponer puerto
 EXPOSE 3000
 
-# Comando por defecto (se puede sobrescribir en docker-compose.yml)
 CMD ["npm", "run", "dev"]
 
