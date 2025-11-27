@@ -17,8 +17,10 @@ dotenv.config();
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://httpbin.org/post';
 const MAX_RETRIES = 3;
 
+let workerChannel: Channel | null = null;
+
 async function processAppointmentCreated(message: ConsumeMessage | null) {
-  if (!message) return;
+  if (!message || !workerChannel) return;
 
   try {
     const data = JSON.parse(message.content.toString());
@@ -42,7 +44,7 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
         operation: 'worker.processCreated',
         appointmentId: data.appointmentId,
       });
-      message.channel.nack(message, false, false);
+      workerChannel.nack(message, false, false);
       return;
     }
 
@@ -169,7 +171,9 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     });
 
     // Confirmar mensaje procesado
-    message.channel.ack(message);
+    if (workerChannel) {
+      workerChannel.ack(message);
+    }
   } catch (error: any) {
     workerLogger.error('Error procesando mensaje appointment.created', {
       resource: 'appointment',
@@ -178,13 +182,15 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
       stack: error.stack,
     });
     // Rechazar y reintentar
-    message.channel.nack(message, false, true);
+    if (workerChannel) {
+      workerChannel.nack(message, false, true);
+    }
   }
 }
 
 // Procesar mensaje de reintento
 async function processAppointmentRetry(message: ConsumeMessage | null) {
-  if (!message) return;
+  if (!message || !workerChannel) return;
 
   try {
     const data = JSON.parse(message.content.toString());
@@ -198,7 +204,9 @@ async function processAppointmentRetry(message: ConsumeMessage | null) {
     await processAppointmentCreated(message);
   } catch (error: any) {
     workerLogger.error('Error procesando reintento', { error: error.message });
-    message.channel.nack(message, false, true);
+    if (workerChannel) {
+      workerChannel.nack(message, false, true);
+    }
   }
 }
 
@@ -209,6 +217,7 @@ async function startWorker() {
 
     // Conectar a RabbitMQ
     const channel = await connectRabbitMQ();
+    workerChannel = channel; // Guardar referencia global
 
     // Consumir cola de appointments creados
     await channel.consume(
@@ -234,13 +243,19 @@ async function startWorker() {
     // Manejar cierre graceful
     process.on('SIGTERM', async () => {
       workerLogger.info('Cerrando worker...');
-      await channel.close();
+      if (workerChannel) {
+        await workerChannel.close();
+        workerChannel = null;
+      }
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
       workerLogger.info('Cerrando worker...');
-      await channel.close();
+      if (workerChannel) {
+        await workerChannel.close();
+        workerChannel = null;
+      }
       process.exit(0);
     });
   } catch (error: any) {
