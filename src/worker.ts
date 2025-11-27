@@ -48,6 +48,15 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
       return;
     }
 
+    workerLogger.info('Preparando payload de webhook', {
+      resource: 'appointment',
+      operation: 'worker.prepareWebhook',
+      appointmentId: appointment.id,
+      professionalId: appointment.professionalId,
+      patientId: appointment.patientId,
+      webhookUrl: WEBHOOK_URL,
+    });
+
     const webhookData = prepareWebhookPayload('appointment.created', {
       appointmentId: appointment.id,
       professional: {
@@ -71,6 +80,14 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     let webhookResponse: string | null = null;
     let attempts = appointment.webhookAttempts || 0;
 
+    workerLogger.info('Enviando webhook HTTP POST', {
+      resource: 'appointment',
+      operation: 'worker.sendWebhook',
+      appointmentId: appointment.id,
+      webhookUrl: WEBHOOK_URL,
+      attempt: attempts + 1,
+    });
+
     try {
       const response = await axios.post(WEBHOOK_URL, webhookData.payload, {
         headers: webhookData.headers,
@@ -92,6 +109,7 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
         patientId: appointment.patientId,
         httpStatus: response.status,
         status: appointment.status,
+        webhookSent: true,
       });
     } catch (error: any) {
       attempts++;
@@ -147,6 +165,14 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     }
 
     // Actualizar estado del appointment
+    workerLogger.info('Actualizando estado del appointment en BD', {
+      resource: 'appointment',
+      operation: 'worker.updateDatabase',
+      appointmentId: appointment.id,
+      webhookSuccess,
+      newStatus: webhookSuccess ? 'CONFIRMED' : appointment.status,
+    });
+
     await prisma.appointment.update({
       where: { id: appointment.id },
       data: {
@@ -171,9 +197,25 @@ async function processAppointmentCreated(message: ConsumeMessage | null) {
     });
 
     // Confirmar mensaje procesado
+    workerLogger.info('Confirmando mensaje procesado en RabbitMQ', {
+      resource: 'appointment',
+      operation: 'worker.ackMessage',
+      appointmentId: appointment.id,
+    });
+
     if (workerChannel) {
       workerChannel.ack(message);
     }
+
+    workerLogger.info('Procesamiento de appointment.created completado exitosamente', {
+      resource: 'appointment',
+      operation: 'worker.processCompleted',
+      appointmentId: appointment.id,
+      professionalId: appointment.professionalId,
+      patientId: appointment.patientId,
+      finalStatus: webhookSuccess ? 'CONFIRMED' : appointment.status,
+      webhookSent: webhookSuccess,
+    });
   } catch (error: any) {
     workerLogger.error('Error procesando mensaje appointment.created', {
       resource: 'appointment',
